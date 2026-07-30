@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rittenkaart - Admin</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --primary: #2c6e49;
+    --primary-dark: #1f4d33;
+    --text: #1c1c1c;
+    --muted: #6b7280;
+    --border: #e2e4e8;
+    --danger: #b3261e;
+    --danger-bg: #fdecea;
+    --success-bg: #e8f5e9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 14px; }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 4px; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
+  button {
+    margin-top: 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 11px 18px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button:hover { background: var(--primary-dark); }
+  button.secondary {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+  }
+  .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.88rem; display: none; }
+  .msg.ok { background: var(--success-bg); color: var(--primary-dark); display: block; }
+  .msg.err { background: var(--danger-bg); color: var(--danger); display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .saldo-laag { color: var(--danger); font-weight: 600; }
+  #loginScreen { max-width: 340px; margin: 80px auto; }
+  .hidden { display: none; }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    margin-top: 0;
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+  .tab-btn:hover { background: transparent; color: var(--primary); }
+  .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="card">
+  <h1>Rittenkaart admin</h1>
+  <p class="subtitle">Voer het adminwachtwoord in</p>
+  <form id="loginForm" onsubmit="login(event); return false;">
+    <input type="text" name="username" value="rittenkaart-admin" autocomplete="username" style="display:none">
+    <label>Wachtwoord</label>
+    <input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="Wachtwoord">
+    <button type="submit">Inloggen</button>
+  </form>
+  <div id="loginMsg" class="msg"></div>
+</div>
+
+<div id="app" class="wrap hidden">
+  <h1 id="verenigingTitel">Rittenkaart admin</h1>
+  <p class="subtitle">Beheer leden en ritsaldo's</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="nieuwLid" onclick="wisselTab('nieuwLid')">Nieuw lid</button>
+    <button class="tab-btn" data-tab="opwaarderen" onclick="wisselTab('opwaarderen')">Opwaarderen</button>
+    <button class="tab-btn" data-tab="ledenOverzicht" onclick="wisselTab('ledenOverzicht')">Leden overzicht</button>
+    <button class="tab-btn" data-tab="instellingen" onclick="wisselTab('instellingen')">Instellingen</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-nieuwLid">
+    <div class="card">
+      <h2>Nieuw lid toevoegen</h2>
+      <label>Lidnummer</label>
+      <input id="newLidnummer" placeholder="bv. 1042">
+      <label>Naam</label>
+      <input id="newNaam" placeholder="Voor- en achternaam">
+      <label>E-mailadres</label>
+      <input id="newEmail" type="email" placeholder="naam@voorbeeld.nl">
+      <button onclick="addMember()">Lid toevoegen &amp; QR mailen</button>
+      <div id="addMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-opwaarderen">
+    <div class="card">
+      <h2>Ritten opwaarderen</h2>
+      <label>Lidnummer</label>
+      <input id="topUpLidnummer" placeholder="bv. 1042">
+      <label>Aantal ritten erbij</label>
+      <input id="topUpAantal" type="number" min="1" value="10">
+      <button onclick="topUp()">Opwaarderen</button>
+      <div id="topUpMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-ledenOverzicht">
+    <div class="card">
+      <h2>Leden overzicht</h2>
+      <button class="secondary" onclick="loadMembers()">Vernieuwen</button>
+      <div id="membersMsg" class="msg"></div>
+      <table id="membersTable">
+        <thead>
+          <tr><th>Lidnr</th><th>Naam</th><th>Saldo</th><th>Laatste scan</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-instellingen">
+    <div class="card">
+      <h2>Instellingen</h2>
+      <label>Hoe lang blijft het scanresultaat zichtbaar op de scanner (seconden)</label>
+      <input id="berichtDuur" type="number" min="1" value="5">
+      <button onclick="saveBerichtDuur()">Opslaan</button>
+      <div id="instellingenMsg" class="msg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ---- CONFIGURATIE: pas dit aan per vereniging voordat je deployt ----
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzKkOQ_2MRJY4wv8mBdBDwcIceCDN_KJQLSiONLJaSSJ40Os6OXpAmGYYiCbLidbLijbA/exec';
+  // -----------------------------------------------------------------
+
+  let adminPassword = '';
+
+  async function callApi(action, extra) {
+    const body = Object.assign({ action: action, adminPassword: adminPassword }, extra || {});
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Onbekende fout');
+    return json.data;
+  }
+
+  function showMsg(id, text, ok) {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = 'msg ' + (ok ? 'ok' : 'err');
+  }
+
+  async function login(e) {
+    if (e) e.preventDefault();
+    const pw = document.getElementById('loginPassword').value;
+    if (!pw) return;
+    try {
+      const data = await (async () => {
+        adminPassword = pw;
+        return await callApi('checkAdminPassword');
+      })();
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('verenigingTitel').textContent = 'Rittenkaart admin - ' + data.verenigingNaam;
+      document.getElementById('berichtDuur').value = data.berichtDuurSeconden;
+      loadMembers();
+    } catch (err) {
+      adminPassword = '';
+      showMsg('loginMsg', err.message, false);
+    }
+  }
+
+  function wisselTab(naam) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === naam));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + naam));
+    if (naam === 'ledenOverzicht') loadMembers();
+  }
+
+  async function saveBerichtDuur() {
+    const seconden = document.getElementById('berichtDuur').value;
+    try {
+      await callApi('setBerichtDuur', { seconden });
+      showMsg('instellingenMsg', 'Berichtduur opgeslagen: ' + seconden + ' seconden.', true);
+    } catch (err) {
+      showMsg('instellingenMsg', err.message, false);
+    }
+  }
+
+  async function addMember() {
+    const lidnummer = document.getElementById('newLidnummer').value.trim();
+    const naam = document.getElementById('newNaam').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
+    try {
+      await callApi('addMember', { lidnummer, naam, email });
+      showMsg('addMsg', 'Lid toegevoegd, QR-code is gemaild.', true);
+      document.getElementById('newLidnummer').value = '';
+      document.getElementById('newNaam').value = '';
+      document.getElementById('newEmail').value = '';
+      loadMembers();
+    } catch (err) {
+      showMsg('addMsg', err.message, false);
+    }
+  }
+
+  async function topUp() {
+    const lidnummer = document.getElementById('topUpLidnummer').value.trim();
+    const aantal = document.getElementById('topUpAantal').value;
+    try {
+      const data = await callApi('topUp', { lidnummer, aantal });
+      showMsg('topUpMsg', 'Nieuw saldo voor lid ' + lidnummer + ': ' + data.nieuwSaldo + ' ritten.', true);
+      loadMembers();
+    } catch (err) {
+      showMsg('topUpMsg', err.message, false);
+    }
+  }
+
+  async function loadMembers() {
+    try {
+      const leden = await callApi('getMembers');
+      const tbody = document.querySelector('#membersTable tbody');
+      tbody.innerHTML = '';
+      leden.forEach(lid => {
+        const tr = document.createElement('tr');
+        const saldoClass = Number(lid.saldo) <= 2 ? 'saldo-laag' : '';
+        tr.innerHTML =
+          '<td>' + lid.lidnummer + '</td>' +
+          '<td>' + lid.naam + '</td>' +
+          '<td class="' + saldoClass + '">' + lid.saldo + '</td>' +
+          '<td>' + (lid.laatsteScan || '-') + '</td>';
+        tbody.appendChild(tr);
+      });
+      document.getElementById('membersMsg').className = 'msg';
+    } catch (err) {
+      showMsg('membersMsg', err.message, false);
+    }
+  }
+</script>
+</body>
+</html>
