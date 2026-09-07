@@ -37,12 +37,13 @@
   }
   .card h2 { font-size: 1.05rem; margin: 0 0 14px; }
   label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 4px; }
-  input {
+  input, select {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 0.95rem;
+    background: white;
   }
   button {
     margin-top: 14px;
@@ -67,6 +68,9 @@
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; }
   .saldo-laag { color: var(--danger); font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .badge-ritten { background: #e3edff; color: #2952a3; }
+  .badge-abonnement { background: #f1e6ff; color: #6b21a8; }
   #loginScreen { max-width: 340px; margin: 80px auto; }
   .hidden { display: none; }
   .tabs {
@@ -74,6 +78,7 @@
     gap: 4px;
     margin-bottom: 20px;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
   }
   .tab-btn {
     margin-top: 0;
@@ -89,6 +94,31 @@
   .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); font-weight: 600; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
+  .type-keuze { display: flex; gap: 10px; margin-top: 6px; }
+  .type-keuze label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+    margin: 0;
+  }
+  .type-keuze input { width: auto; }
+  .subveld { display: none; }
+  .lid-info-box {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fafbfc;
+    display: none;
+  }
+  .lid-info-box .naam { font-weight: 600; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -107,7 +137,7 @@
 
 <div id="app" class="wrap hidden">
   <h1 id="verenigingTitel">Rittenkaart admin</h1>
-  <p class="subtitle">Beheer leden en ritsaldo's</p>
+  <p class="subtitle">Beheer leden, ritsaldo's en abonnementen</p>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="nieuwLid" onclick="wisselTab('nieuwLid')">Nieuw lid</button>
@@ -125,6 +155,28 @@
       <input id="newNaam" placeholder="Voor- en achternaam">
       <label>E-mailadres</label>
       <input id="newEmail" type="email" placeholder="naam@voorbeeld.nl">
+
+      <label>Type</label>
+      <div class="type-keuze">
+        <label>
+          <input type="radio" name="newType" value="Ritten" checked onchange="wisselNieuwType()">
+          Rittenkaart (10 ritten)
+        </label>
+        <label>
+          <input type="radio" name="newType" value="Abonnement" onchange="wisselNieuwType()">
+          Abonnement
+        </label>
+      </div>
+
+      <div id="newAbonnementVeld" class="subveld">
+        <label>Looptijd</label>
+        <select id="newDuur">
+          <option value="maand">1 maand</option>
+          <option value="halfjaar">Half jaar</option>
+          <option value="jaar">1 jaar</option>
+        </select>
+      </div>
+
       <button onclick="addMember()">Lid toevoegen &amp; QR mailen</button>
       <div id="addMsg" class="msg"></div>
     </div>
@@ -132,12 +184,33 @@
 
   <div class="tab-panel" id="tab-opwaarderen">
     <div class="card">
-      <h2>Ritten opwaarderen</h2>
+      <h2>Opwaarderen / verlengen</h2>
       <label>Lidnummer</label>
-      <input id="topUpLidnummer" placeholder="bv. 1042">
-      <label>Aantal ritten erbij</label>
-      <input id="topUpAantal" type="number" min="1" value="10">
-      <button onclick="topUp()">Opwaarderen</button>
+      <input id="zoekLidnummer" placeholder="bv. 1042">
+      <button class="secondary" onclick="zoekLid()">Lid opzoeken</button>
+      <div id="zoekMsg" class="msg"></div>
+
+      <div id="lidInfoBox" class="lid-info-box">
+        <div class="naam" id="lidInfoNaam"></div>
+        <div id="lidInfoDetail"></div>
+      </div>
+
+      <div id="rittenVeld" class="subveld">
+        <label>Aantal ritten erbij</label>
+        <input id="topUpAantal" type="number" min="1" value="10">
+        <button onclick="topUpRitten()">Ritten opwaarderen</button>
+      </div>
+
+      <div id="abonnementVeld" class="subveld">
+        <label>Verlengen met</label>
+        <select id="verlengDuur">
+          <option value="maand">1 maand</option>
+          <option value="halfjaar">Half jaar</option>
+          <option value="jaar">1 jaar</option>
+        </select>
+        <button onclick="verlengAbonnement()">Abonnement verlengen</button>
+      </div>
+
       <div id="topUpMsg" class="msg"></div>
     </div>
   </div>
@@ -149,7 +222,7 @@
       <div id="membersMsg" class="msg"></div>
       <table id="membersTable">
         <thead>
-          <tr><th>Lidnr</th><th>Naam</th><th>Saldo</th><th>Laatste scan</th></tr>
+          <tr><th>Lidnr</th><th>Naam</th><th>Type</th><th>Saldo / Vervaldatum</th><th>Laatste scan</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -169,10 +242,11 @@
 
 <script>
   // ---- CONFIGURATIE: pas dit aan per vereniging voordat je deployt ----
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz5n4TR0BnyiT0oEqrBIr5xiwTq57R3MmoPJLqV1_eKb-qhI7BwGqaXZPDbAs5fg4KR4g/exec';
+  const APPS_SCRIPT_URL = 'PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL';
   // -----------------------------------------------------------------
 
   let adminPassword = '';
+  let gevondenLid = null;
 
   async function callApi(action, extra) {
     const body = Object.assign({ action: action, adminPassword: adminPassword }, extra || {});
@@ -215,6 +289,12 @@
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === naam));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + naam));
     if (naam === 'ledenOverzicht') loadMembers();
+    if (naam === 'opwaarderen') resetOpwaardeerBlok();
+  }
+
+  function wisselNieuwType() {
+    const type = document.querySelector('input[name="newType"]:checked').value;
+    document.getElementById('newAbonnementVeld').style.display = type === 'Abonnement' ? 'block' : 'none';
   }
 
   async function saveBerichtDuur() {
@@ -231,8 +311,10 @@
     const lidnummer = document.getElementById('newLidnummer').value.trim();
     const naam = document.getElementById('newNaam').value.trim();
     const email = document.getElementById('newEmail').value.trim();
+    const type = document.querySelector('input[name="newType"]:checked').value;
+    const duur = document.getElementById('newDuur').value;
     try {
-      await callApi('addMember', { lidnummer, naam, email });
+      await callApi('addMember', { lidnummer, naam, email, type, duur });
       showMsg('addMsg', 'Lid toegevoegd, QR-code is gemaild.', true);
       document.getElementById('newLidnummer').value = '';
       document.getElementById('newNaam').value = '';
@@ -243,13 +325,61 @@
     }
   }
 
-  async function topUp() {
-    const lidnummer = document.getElementById('topUpLidnummer').value.trim();
+  function resetOpwaardeerBlok() {
+    gevondenLid = null;
+    document.getElementById('lidInfoBox').style.display = 'none';
+    document.getElementById('rittenVeld').style.display = 'none';
+    document.getElementById('abonnementVeld').style.display = 'none';
+    document.getElementById('zoekLidnummer').value = '';
+    document.getElementById('zoekMsg').className = 'msg';
+    document.getElementById('topUpMsg').className = 'msg';
+  }
+
+  async function zoekLid() {
+    const lidnummer = document.getElementById('zoekLidnummer').value.trim();
+    if (!lidnummer) return;
+    try {
+      const data = await callApi('getMemberInfo', { lidnummer });
+      gevondenLid = data;
+      document.getElementById('lidInfoNaam').textContent = data.naam;
+      document.getElementById('lidInfoDetail').textContent =
+        data.type === 'Abonnement'
+          ? 'Abonnement, geldig t/m ' + (data.vervalDatum || '-')
+          : 'Rittenkaart, saldo: ' + data.saldo + ' ritten';
+      document.getElementById('lidInfoBox').style.display = 'block';
+      document.getElementById('rittenVeld').style.display = data.type === 'Abonnement' ? 'none' : 'block';
+      document.getElementById('abonnementVeld').style.display = data.type === 'Abonnement' ? 'block' : 'none';
+      document.getElementById('zoekMsg').className = 'msg';
+    } catch (err) {
+      gevondenLid = null;
+      document.getElementById('lidInfoBox').style.display = 'none';
+      document.getElementById('rittenVeld').style.display = 'none';
+      document.getElementById('abonnementVeld').style.display = 'none';
+      showMsg('zoekMsg', err.message, false);
+    }
+  }
+
+  async function topUpRitten() {
+    if (!gevondenLid) return;
     const aantal = document.getElementById('topUpAantal').value;
     try {
-      const data = await callApi('topUp', { lidnummer, aantal });
-      showMsg('topUpMsg', 'Nieuw saldo voor lid ' + lidnummer + ': ' + data.nieuwSaldo + ' ritten.', true);
+      const data = await callApi('topUpRitten', { lidnummer: gevondenLid.lidnummer, aantal });
+      showMsg('topUpMsg', 'Nieuw saldo voor lid ' + gevondenLid.lidnummer + ': ' + data.nieuwSaldo + ' ritten.', true);
       loadMembers();
+      zoekLid();
+    } catch (err) {
+      showMsg('topUpMsg', err.message, false);
+    }
+  }
+
+  async function verlengAbonnement() {
+    if (!gevondenLid) return;
+    const duur = document.getElementById('verlengDuur').value;
+    try {
+      const data = await callApi('verlengAbonnement', { lidnummer: gevondenLid.lidnummer, duur });
+      showMsg('topUpMsg', 'Abonnement voor lid ' + gevondenLid.lidnummer + ' is nu geldig t/m ' + data.nieuweVervalDatum + '.', true);
+      loadMembers();
+      zoekLid();
     } catch (err) {
       showMsg('topUpMsg', err.message, false);
     }
@@ -262,11 +392,17 @@
       tbody.innerHTML = '';
       leden.forEach(lid => {
         const tr = document.createElement('tr');
-        const saldoClass = Number(lid.saldo) <= 2 ? 'saldo-laag' : '';
+        const isAbonnement = lid.type === 'Abonnement';
+        const badge = isAbonnement
+          ? '<span class="badge badge-abonnement">Abonnement</span>'
+          : '<span class="badge badge-ritten">Ritten</span>';
+        const saldoClass = !isAbonnement && Number(lid.saldo) <= 2 ? 'saldo-laag' : '';
+        const saldoOfVerval = isAbonnement ? (lid.vervalDatum || '-') : lid.saldo;
         tr.innerHTML =
           '<td>' + lid.lidnummer + '</td>' +
           '<td>' + lid.naam + '</td>' +
-          '<td class="' + saldoClass + '">' + lid.saldo + '</td>' +
+          '<td>' + badge + '</td>' +
+          '<td class="' + saldoClass + '">' + saldoOfVerval + '</td>' +
           '<td>' + (lid.laatsteScan || '-') + '</td>';
         tbody.appendChild(tr);
       });
