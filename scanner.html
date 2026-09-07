@@ -129,7 +129,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
   // ---- CONFIGURATIE: pas dit aan per vereniging voordat je deployt ----
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz5n4TR0BnyiT0oEqrBIr5xiwTq57R3MmoPJLqV1_eKb-qhI7BwGqaXZPDbAs5fg4KR4g/exec';
+  const APPS_SCRIPT_URL = 'PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL';
   // -----------------------------------------------------------------
 
   let scannerPassword = '';
@@ -257,7 +257,9 @@
     document.getElementById('resultNaam').textContent = data.naam || '';
     document.getElementById('resultMelding').textContent = data.melding;
     document.getElementById('resultSaldo').textContent =
-      data.saldo !== '' && data.saldo !== undefined ? 'Nog ' + data.saldo + ' ritten over' : '';
+      data.type === 'Abonnement'
+        ? (data.vervalDatum ? 'Abonnement t/m ' + data.vervalDatum : '')
+        : (data.saldo !== '' && data.saldo !== undefined ? 'Nog ' + data.saldo + ' ritten over' : '');
     overlay.style.display = 'flex';
     piepEnTril(data.toegestaan);
     document.getElementById('status').textContent = 'Richt de camera op de QR-code';
