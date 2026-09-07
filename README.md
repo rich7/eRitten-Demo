@@ -8,27 +8,71 @@ Deze 'app' neemt de zorgen voor ritten kaarten uit handen. Het is voor verenigin
 ## Vraag voor demo account
 Uitproberen?  Op maat gemaakte eRittenkaart? of een kant en klare oplossing? Ik ben bereikbaar op  rich.de.ree@gmail.com
 
-##   de eRittenkaart apps
-## 1. Scanner   
-App voor telefoon. Scanned de QR code een geeft toegang en trekt 1 rit af, of geeft reden waarom geweigerd.
-De app, is als webpagina gemaakt en werkt op vrijwel iedere telefoon.
+# Rittenkaart -app - installatie
 
-	[Try Admin](https://rich7.github.io/rittenkaart/scanner.html)
+## 1. Google Sheet aanmaken
+1. Maak een nieuwe Google Sheet.
+2. Hernoem het eerste tabblad naar exact `Leden`.
+3. Zet in rij 1 deze koppen (kolom A t/m I):
+   `Lidnummer | Naam | Email | Token | Saldo | LaatsteScan | AangemaaktOp | Type | AbonnementVervalt`
 
-## 2. Admin tool.  
-Voegt rittenkaarten toe, verstuurd email met nieuwe kaart (QR code). opwaarderen kaart, kaarten overzicht.  Instellingen
+   > **Heb je de Sheet al eerder aangemaakt (kolom A t/m G)?** Voeg twee kolommen toe: `Type` (H) en `AbonnementVervalt` (I). Vul bij je bestaande leden in kolom H overal `Ritten` in, kolom I mag leeg blijven.
 
-	[Try Admin](https://rich7.github.io/rittenkaart/admin.html)
+## Ritten vs. Abonnement
+Bij het aanmaken van een lid kies je in het adminpaneel het type:
+- **Ritten**: werkt zoals voorheen, 10 ritten, opwaarderen met een aantal.
+- **Abonnement**: kies een looptijd (maand / half jaar / jaar). Er wordt niets afgeschreven bij scannen - de scanner controleert alleen of de vervaldatum nog niet verstreken is. Verlengen schuift de vervaldatum op (vanaf de bestaande vervaldatum als die nog geldig is, anders vanaf vandaag).
 
-## 3. Leden app. 
-QR code uit Email is voldoende.
-Optioneel kan lid de leden app gebruiken
-Laat toegangs QR code zien, laatste datum afschrijving en resterend tegoed
+## 2. Apps Script koppelen
+1. In de Sheet: **Extensies > Apps Script**.
+2. Verwijder de standaardinhoud en plak de inhoud van `Code.gs`. Dit bestand hoef je verder **niet** te bewerken - het wachtwoord en de andere instellingen komen er niet in te staan.
+3. Vul de instellingen in via **Scripteigenschappen** (los van de code, dit is een apart instellingenscherm):
+   - Klik links in het menu op het **tandwiel-icoon** ("Projectinstellingen").
+   - Scroll naar **"Scripteigenschappen"**.
+   - Klik op **"Scripteigenschap toevoegen"** en voeg deze drie toe (één voor één, telkens weer op "Scripteigenschap toevoegen" klikken):
 
-	[Try leden screen]](https://rich7.github.io/rittenkaart/leden.html)
+     | Eigenschap | Waarde |
+     |---|---|
+     | `ADMIN_PASSWORD` | een wachtwoord naar keuze |
+     | `VERENIGING_NAAM` | naam van de vereniging (komt in de mail en op de schermen) |
+     | `LID_APP_URL` | de GitHub Pages-URL van `lid.html`, zodra die live staat (bv. `https://rich7.github.io/rittenkaart/lid.html`) - mag je later toevoegen/wijzigen |
 
-## 4. Opslag kaarten en activiteiten log op Google Sheets 
-Backend opslag voor rittenkaarten. Activiteiten log met alle scans en opwaarderingen 
+   - Klik onderaan op **"Scripteigenschappen opslaan"** (aparte knop, los van het opslaan van de code).
+4. **Implementeren > Nieuwe implementatie**
+   - Type: **Webapp**
+   - Uitvoeren als: **Ik**
+   - Toegang: **Iedereen**
+5. Kopieer de webapp-URL die je krijgt (eindigt op `/exec`).
+6. Bij de eerste keer implementeren vraagt Google om machtigingen (Sheet lezen/schrijven, mail versturen) - accepteer die voor je eigen account.
+
+> Wijzig je later het wachtwoord of de verenigingsnaam? Dat doe je altijd via Scripteigenschappen, niet in `Code.gs`. Wijzigingen daar zijn direct actief, zonder dat je opnieuw hoeft te implementeren.
+
+## 3. HTML-bestanden instellen
+Open `admin.html`, `scanner.html` en `lid.html` in een teksteditor en vervang in elk bestand:
+```
+const APPS_SCRIPT_URL = 'PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL';
+```
+met de webapp-URL uit stap 2.
+
+## 4. Hosten
+Zet `admin.html`, `scanner.html` en `lid.html` op GitHub Pages (net als je andere tools). Ze zijn los van elkaar te gebruiken:
+- `admin.html`: tabs voor nieuw lid toevoegen (kies Ritten of Abonnement, mailt automatisch de QR-code), opwaarderen/verlengen (zoek een lid op, het scherm past zich aan op het type), ledenoverzicht, en instellingen (berichtduur op de scanner).
+- `scanner.html`: open dit op de telefoon/tablet bij de deur, log in met het wachtwoord, laat de camera op de QR-code richten. Piept/trilt bij geslaagde/geweigerde scan, stopt 3 seconden met scannen na elk resultaat.
+- `lid.html`: leden vullen hun lidnummer + e-mailadres in en zien hun eigen tegoed en laatste bezoek. Geen wachtwoord nodig - kan gewoon gedeeld worden als link.
+
+## 5. Meerdere verenigingen
+Voor een tweede vereniging: maak een kopie van de hele Sheet (**Bestand > Kopie maken**, script gaat mee), zet eigen Scripteigenschappen, doe een nieuwe implementatie, en maak een kopie van `admin.html`/`scanner.html`/`lid.html` met de nieuwe webapp-URL erin.
+
+## Log-tabblad
+Er verschijnt automatisch een tweede tabblad "Log" in je Sheet zodra de eerste scan plaatsvindt. Daar staat elke scanpoging (geslaagd of geweigerd, met reden).
+
+## Vingerafdruk/Face ID inloggen
+`admin.html` en `scanner.html` gebruiken nu een echt inlogformulier, zodat de browser het wachtwoord kan aanbieden om op te slaan. Zodra je dat op een telefoon/tablet één keer doet (bij het eerste keer inloggen kiest de browser/wachtwoordmanager voor "wachtwoord opslaan?"), vult diezelfde browser het wachtwoord bij een volgend bezoek automatisch in nadat je met Face ID/vingerafdruk hebt bevestigd - dat is standaardgedrag van de wachtwoordmanager (iOS Sleutelhanger, Google Wachtwoordmanager, enz.), er is geen extra installatie voor nodig.
+
+## Nog open/te overwegen
+- Wachtwoorden staan als platte tekst in Scripteigenschappen en worden bij elke aanroep meegestuurd - prima voor beperkte, vertrouwde toegang, maar geen bankwaardige beveiliging.
+- QR-afbeelding wordt gegenereerd via de gratis dienst api.qrserver.com. Werkt prima, maar is een externe afhankelijkheid.
+- Er is nog geen manier om een lid te verwijderen/wachtwoord te wijzigen vanuit het adminpaneel zelf - dat kan rechtstreeks in de Sheet / Scripteigenschappen.
 
 Screenshot Google sheets (backend, **Wordt automatisch bijgehouden**)  
 
