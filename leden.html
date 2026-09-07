@@ -62,6 +62,8 @@
   .qr-code { width: 200px; height: 200px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: white; }
   .saldo-groot { font-size: 2.6rem; font-weight: 700; color: var(--primary); line-height: 1; }
   .saldo-label { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+  .status-verlopen { color: var(--danger); }
+  .status-geldig { color: var(--primary); }
   .laatste-bezoek { margin-top: 18px; font-size: 0.9rem; color: var(--muted); }
   .terug-btn {
     background: transparent;
@@ -91,7 +93,7 @@
       <div class="naam" id="resNaam"></div>
       <img id="resQr" class="qr-code" alt="Jouw QR-code">
       <div class="saldo-groot" id="resSaldo"></div>
-      <div class="saldo-label">ritten over</div>
+      <div class="saldo-label" id="resSaldoLabel">ritten over</div>
       <div class="laatste-bezoek" id="resLaatsteBezoek"></div>
       <button class="terug-btn" onclick="terug()">Andere gegevens invoeren</button>
     </div>
@@ -100,7 +102,7 @@
 
 <script>
   // ---- CONFIGURATIE: pas dit aan per vereniging voordat je deployt ----
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz5n4TR0BnyiT0oEqrBIr5xiwTq57R3MmoPJLqV1_eKb-qhI7BwGqaXZPDbAs5fg4KR4g/exec';
+  const APPS_SCRIPT_URL = 'PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL';
   // -----------------------------------------------------------------
 
   async function bekijkStatus() {
@@ -126,7 +128,17 @@
       document.getElementById('resNaam').textContent = 'Hoi ' + json.data.naam;
       document.getElementById('resQr').src =
         'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(json.data.token);
-      document.getElementById('resSaldo').textContent = json.data.saldo;
+
+      if (json.data.type === 'Abonnement') {
+        document.getElementById('resSaldo').textContent = json.data.geldig ? 'Geldig' : 'Verlopen';
+        document.getElementById('resSaldo').className = 'saldo-groot ' + (json.data.geldig ? 'status-geldig' : 'status-verlopen');
+        document.getElementById('resSaldoLabel').textContent = 'abonnement t/m ' + json.data.vervalDatum;
+      } else {
+        document.getElementById('resSaldo').textContent = json.data.saldo;
+        document.getElementById('resSaldo').className = 'saldo-groot';
+        document.getElementById('resSaldoLabel').textContent = 'ritten over';
+      }
+
       document.getElementById('resLaatsteBezoek').textContent = 'Laatste bezoek: ' + json.data.laatsteBezoek;
       document.getElementById('zoekForm').style.display = 'none';
       document.getElementById('resultaat').style.display = 'block';
