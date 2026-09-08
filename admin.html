@@ -25,7 +25,7 @@
     color: var(--text);
     padding: 20px;
   }
-  .wrap { max-width: 640px; margin: 0 auto; }
+  .wrap { max-width: 680px; margin: 0 auto; }
   h1 { font-size: 1.4rem; margin-bottom: 4px; }
   .subtitle { color: var(--muted); margin-bottom: 24px; font-size: 0.9rem; }
   .card {
@@ -36,6 +36,7 @@
     margin-bottom: 20px;
   }
   .card h2 { font-size: 1.05rem; margin: 0 0 14px; }
+  .card h3 { font-size: 0.95rem; margin: 20px 0 10px; padding-top: 14px; border-top: 1px solid var(--border); }
   label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 4px; }
   input, select {
     width: 100%;
@@ -61,6 +62,8 @@
     color: var(--primary);
     border: 1px solid var(--primary);
   }
+  button.danger { background: var(--danger); }
+  button.danger:hover { background: #8f1e17; }
   .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.88rem; display: none; }
   .msg.ok { background: var(--success-bg); color: var(--primary-dark); display: block; }
   .msg.err { background: var(--danger-bg); color: var(--danger); display: block; }
@@ -68,9 +71,20 @@
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; }
   .saldo-laag { color: var(--danger); font-weight: 600; }
+  .rij-verlopen { background: var(--danger-bg); }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
   .badge-ritten { background: #e3edff; color: #2952a3; }
   .badge-abonnement { background: #f1e6ff; color: #6b21a8; }
+  .icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.05rem;
+    padding: 2px 6px;
+    margin: 0;
+    border-radius: 6px;
+  }
+  .icon-btn:hover { background: var(--bg); }
   #loginScreen { max-width: 340px; margin: 80px auto; }
   .hidden { display: none; }
   .tabs {
@@ -212,17 +226,23 @@
       </div>
 
       <div id="topUpMsg" class="msg"></div>
+
+      <div id="verwijderVeld" class="subveld">
+        <button class="danger" onclick="verwijderGevondenLid()">Lid verwijderen</button>
+      </div>
     </div>
   </div>
 
   <div class="tab-panel" id="tab-ledenOverzicht">
     <div class="card">
       <h2>Leden overzicht</h2>
+      <label>Zoek op naam of lidnummer</label>
+      <input id="zoekLedenOverzicht" placeholder="Typ om te filteren..." oninput="filterLedenOverzicht()">
       <button class="secondary" onclick="loadMembers()">Vernieuwen</button>
       <div id="membersMsg" class="msg"></div>
       <table id="membersTable">
         <thead>
-          <tr><th>Lidnr</th><th>Naam</th><th>Type</th><th>Saldo / Vervaldatum</th><th>Laatste scan</th></tr>
+          <tr><th>Lidnr</th><th>Naam</th><th>Type</th><th>Saldo / Vervaldatum</th><th>Laatste scan</th><th></th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -235,18 +255,37 @@
       <label>Hoe lang blijft het scanresultaat zichtbaar op de scanner (seconden)</label>
       <input id="berichtDuur" type="number" min="1" value="5">
       <button onclick="saveBerichtDuur()">Opslaan</button>
-      <div id="instellingenMsg" class="msg"></div>
+      <div id="berichtDuurMsg" class="msg"></div>
+
+      <h3>Blokkade na scannen (Ritten-leden)</h3>
+      <label>Minuten wachten voor dezelfde rittenkaart opnieuw een rit mag afschrijven</label>
+      <input id="scanCooldown" type="number" min="0" value="5">
+      <button onclick="saveScanCooldown()">Opslaan</button>
+      <div id="scanCooldownMsg" class="msg"></div>
+
+      <h3>Wachtwoord wijzigen</h3>
+      <label>Nieuw wachtwoord</label>
+      <input id="nieuwWachtwoord" type="password" autocomplete="new-password">
+      <label>Herhaal nieuw wachtwoord</label>
+      <input id="nieuwWachtwoordHerhaal" type="password" autocomplete="new-password">
+      <button onclick="wijzigWachtwoord()">Wachtwoord wijzigen</button>
+      <div id="wachtwoordMsg" class="msg"></div>
+      <p style="font-size:0.8rem;color:var(--muted);margin-top:10px;">
+        Wachtwoord vergeten? Dat kan alleen hersteld worden via Scripteigenschappen
+        in de Apps Script-editor zelf (zie README).
+      </p>
     </div>
   </div>
 </div>
 
 <script>
   // ---- CONFIGURATIE: pas dit aan per vereniging voordat je deployt ----
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx39GhCUTB7qq7Fg4xdVWqK5vozI2LsgmSokAKSzSmBfdT34QrVtY33YxsFBjlzPQjxHg/exec';
+  const APPS_SCRIPT_URL = 'PLAK_HIER_JE_APPS_SCRIPT_WEBAPP_URL';
   // -----------------------------------------------------------------
 
   let adminPassword = '';
   let gevondenLid = null;
+  let ledenCache = [];
 
   async function callApi(action, extra) {
     const body = Object.assign({ action: action, adminPassword: adminPassword }, extra || {});
@@ -254,7 +293,17 @@
       method: 'POST',
       body: JSON.stringify(body)
     });
-    const json = await res.json();
+    const tekst = await res.text();
+    let json;
+    try {
+      json = JSON.parse(tekst);
+    } catch (e) {
+      throw new Error(
+        'Onverwacht antwoord van de server (geen JSON, status ' + res.status + '). ' +
+        'Check of je de laatste Code.gs hebt geplakt en een nieuwe implementatieversie hebt gemaakt. ' +
+        'Eerste tekens van het antwoord: ' + tekst.slice(0, 120)
+      );
+    }
     if (!json.success) throw new Error(json.error || 'Onbekende fout');
     return json.data;
   }
@@ -263,6 +312,15 @@
     const el = document.getElementById(id);
     el.textContent = text;
     el.className = 'msg ' + (ok ? 'ok' : 'err');
+    if (ok) {
+      setTimeout(() => {
+        if (el.textContent === text) el.className = 'msg';
+      }, 4000);
+    }
+  }
+
+  function wisMeldingen() {
+    document.querySelectorAll('.msg').forEach(el => { el.className = 'msg'; });
   }
 
   async function login(e) {
@@ -278,6 +336,7 @@
       document.getElementById('app').classList.remove('hidden');
       document.getElementById('verenigingTitel').textContent = 'Rittenkaart admin - ' + data.verenigingNaam;
       document.getElementById('berichtDuur').value = data.berichtDuurSeconden;
+      document.getElementById('scanCooldown').value = data.scanCooldownMinuten;
       loadMembers();
     } catch (err) {
       adminPassword = '';
@@ -288,6 +347,7 @@
   function wisselTab(naam) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === naam));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + naam));
+    wisMeldingen();
     if (naam === 'ledenOverzicht') loadMembers();
     if (naam === 'opwaarderen') resetOpwaardeerBlok();
   }
@@ -301,9 +361,37 @@
     const seconden = document.getElementById('berichtDuur').value;
     try {
       await callApi('setBerichtDuur', { seconden });
-      showMsg('instellingenMsg', 'Berichtduur opgeslagen: ' + seconden + ' seconden.', true);
+      showMsg('berichtDuurMsg', 'Berichtduur opgeslagen: ' + seconden + ' seconden.', true);
     } catch (err) {
-      showMsg('instellingenMsg', err.message, false);
+      showMsg('berichtDuurMsg', err.message, false);
+    }
+  }
+
+  async function saveScanCooldown() {
+    const minuten = document.getElementById('scanCooldown').value;
+    try {
+      await callApi('setScanCooldown', { minuten });
+      showMsg('scanCooldownMsg', 'Blokkadeduur opgeslagen: ' + minuten + ' minuten.', true);
+    } catch (err) {
+      showMsg('scanCooldownMsg', err.message, false);
+    }
+  }
+
+  async function wijzigWachtwoord() {
+    const nieuw = document.getElementById('nieuwWachtwoord').value;
+    const herhaal = document.getElementById('nieuwWachtwoordHerhaal').value;
+    if (!nieuw || nieuw !== herhaal) {
+      showMsg('wachtwoordMsg', 'De wachtwoorden komen niet overeen.', false);
+      return;
+    }
+    try {
+      await callApi('setAdminPassword', { nieuwWachtwoord: nieuw });
+      adminPassword = nieuw;
+      document.getElementById('nieuwWachtwoord').value = '';
+      document.getElementById('nieuwWachtwoordHerhaal').value = '';
+      showMsg('wachtwoordMsg', 'Wachtwoord gewijzigd.', true);
+    } catch (err) {
+      showMsg('wachtwoordMsg', err.message, false);
     }
   }
 
@@ -330,6 +418,7 @@
     document.getElementById('lidInfoBox').style.display = 'none';
     document.getElementById('rittenVeld').style.display = 'none';
     document.getElementById('abonnementVeld').style.display = 'none';
+    document.getElementById('verwijderVeld').style.display = 'none';
     document.getElementById('zoekLidnummer').value = '';
     document.getElementById('zoekMsg').className = 'msg';
     document.getElementById('topUpMsg').className = 'msg';
@@ -349,14 +438,22 @@
       document.getElementById('lidInfoBox').style.display = 'block';
       document.getElementById('rittenVeld').style.display = data.type === 'Abonnement' ? 'none' : 'block';
       document.getElementById('abonnementVeld').style.display = data.type === 'Abonnement' ? 'block' : 'none';
+      document.getElementById('verwijderVeld').style.display = 'block';
       document.getElementById('zoekMsg').className = 'msg';
     } catch (err) {
       gevondenLid = null;
       document.getElementById('lidInfoBox').style.display = 'none';
       document.getElementById('rittenVeld').style.display = 'none';
       document.getElementById('abonnementVeld').style.display = 'none';
+      document.getElementById('verwijderVeld').style.display = 'none';
       showMsg('zoekMsg', err.message, false);
     }
+  }
+
+  function gaNaarOpwaarderen(lidnummer) {
+    wisselTab('opwaarderen');
+    document.getElementById('zoekLidnummer').value = lidnummer;
+    zoekLid();
   }
 
   async function topUpRitten() {
@@ -385,31 +482,71 @@
     }
   }
 
+  async function verwijderGevondenLid() {
+    if (!gevondenLid) return;
+    verwijderLid(gevondenLid.lidnummer, gevondenLid.naam);
+  }
+
+  async function verwijderLid(lidnummer, naam) {
+    const zeker = window.confirm('Weet je zeker dat je ' + naam + ' (lid ' + lidnummer + ') wilt verwijderen? Dit kan niet ongedaan gemaakt worden.');
+    if (!zeker) return;
+    try {
+      await callApi('deleteMember', { lidnummer });
+      showMsg('topUpMsg', 'Lid ' + lidnummer + ' is verwijderd.', true);
+      resetOpwaardeerBlok();
+      loadMembers();
+    } catch (err) {
+      showMsg('membersMsg', err.message, false);
+    }
+  }
+
   async function loadMembers() {
     try {
-      const leden = await callApi('getMembers');
-      const tbody = document.querySelector('#membersTable tbody');
-      tbody.innerHTML = '';
-      leden.forEach(lid => {
-        const tr = document.createElement('tr');
-        const isAbonnement = lid.type === 'Abonnement';
-        const badge = isAbonnement
-          ? '<span class="badge badge-abonnement">Abonnement</span>'
-          : '<span class="badge badge-ritten">Ritten</span>';
-        const saldoClass = !isAbonnement && Number(lid.saldo) <= 2 ? 'saldo-laag' : '';
-        const saldoOfVerval = isAbonnement ? (lid.vervalDatum || '-') : lid.saldo;
-        tr.innerHTML =
-          '<td>' + lid.lidnummer + '</td>' +
-          '<td>' + lid.naam + '</td>' +
-          '<td>' + badge + '</td>' +
-          '<td class="' + saldoClass + '">' + saldoOfVerval + '</td>' +
-          '<td>' + (lid.laatsteScan || '-') + '</td>';
-        tbody.appendChild(tr);
-      });
+      ledenCache = await callApi('getMembers');
+      document.getElementById('zoekLedenOverzicht').value = '';
+      renderLedenTabel(ledenCache);
       document.getElementById('membersMsg').className = 'msg';
     } catch (err) {
       showMsg('membersMsg', err.message, false);
     }
+  }
+
+  function filterLedenOverzicht() {
+    const zoek = document.getElementById('zoekLedenOverzicht').value.trim().toLowerCase();
+    if (!zoek) {
+      renderLedenTabel(ledenCache);
+      return;
+    }
+    const gefilterd = ledenCache.filter(lid =>
+      String(lid.naam).toLowerCase().includes(zoek) || String(lid.lidnummer).toLowerCase().includes(zoek)
+    );
+    renderLedenTabel(gefilterd);
+  }
+
+  function renderLedenTabel(leden) {
+    const tbody = document.querySelector('#membersTable tbody');
+    tbody.innerHTML = '';
+    leden.forEach(lid => {
+      const tr = document.createElement('tr');
+      const isAbonnement = lid.type === 'Abonnement';
+      if (lid.verlopen) tr.classList.add('rij-verlopen');
+      const badge = isAbonnement
+        ? '<span class="badge badge-abonnement">Abonnement</span>'
+        : '<span class="badge badge-ritten">Ritten</span>';
+      const saldoClass = !isAbonnement && Number(lid.saldo) <= 2 ? 'saldo-laag' : '';
+      const saldoOfVerval = isAbonnement ? (lid.vervalDatum || '-') : lid.saldo;
+      tr.innerHTML =
+        '<td>' + lid.lidnummer + '</td>' +
+        '<td>' + lid.naam + '</td>' +
+        '<td>' + badge + '</td>' +
+        '<td class="' + saldoClass + '">' + saldoOfVerval + '</td>' +
+        '<td>' + (lid.laatsteScan || '-') + '</td>' +
+        '<td style="white-space:nowrap;">' +
+        '<button class="icon-btn" title="Opwaarderen/verlengen" onclick="gaNaarOpwaarderen(\\'' + lid.lidnummer + '\\')">\uD83D\uDCB3</button>' +
+        '<button class="icon-btn" title="Verwijderen" onclick="verwijderLid(\\'' + lid.lidnummer + '\\', \\'' + String(lid.naam).replace(/'/g, "\\\\'") + '\\')">\uD83D\uDDD1\uFE0F</button>' +
+        '</td>';
+      tbody.appendChild(tr);
+    });
   }
 </script>
 </body>
