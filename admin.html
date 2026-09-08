@@ -1,10 +1,6 @@
 <!DOCTYPE html>
-<!---- /*v2.3*/  test
-
-
---->
-
 <html lang="nl">
+<!---- v2.4 -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -269,11 +265,14 @@
       <div id="scanCooldownMsg" class="msg"></div>
 
       <h3>Wachtwoord wijzigen</h3>
-      <label>Nieuw wachtwoord</label>
-      <input id="nieuwWachtwoord" type="password" autocomplete="new-password">
-      <label>Herhaal nieuw wachtwoord</label>
-      <input id="nieuwWachtwoordHerhaal" type="password" autocomplete="new-password">
-      <button onclick="wijzigWachtwoord()">Wachtwoord wijzigen</button>
+      <form onsubmit="wijzigWachtwoord(event); return false;">
+        <input type="text" name="username" value="rittenkaart-admin" autocomplete="username" style="display:none">
+        <label>Nieuw wachtwoord</label>
+        <input id="nieuwWachtwoord" name="new-password" type="password" autocomplete="new-password">
+        <label>Herhaal nieuw wachtwoord</label>
+        <input id="nieuwWachtwoordHerhaal" name="new-password-herhaal" type="password" autocomplete="new-password">
+        <button type="submit">Wachtwoord wijzigen</button>
+      </form>
       <div id="wachtwoordMsg" class="msg"></div>
       <p style="font-size:0.8rem;color:var(--muted);margin-top:10px;">
         Wachtwoord vergeten? Dat kan alleen hersteld worden via Scripteigenschappen
@@ -382,7 +381,8 @@
     }
   }
 
-  async function wijzigWachtwoord() {
+  async function wijzigWachtwoord(e) {
+    if (e) e.preventDefault();
     const nieuw = document.getElementById('nieuwWachtwoord').value;
     const herhaal = document.getElementById('nieuwWachtwoordHerhaal').value;
     if (!nieuw || nieuw !== herhaal) {
@@ -532,24 +532,55 @@
     const tbody = document.querySelector('#membersTable tbody');
     tbody.innerHTML = '';
     leden.forEach(lid => {
-      const tr = document.createElement('tr');
       const isAbonnement = lid.type === 'Abonnement';
-      if (lid.verlopen) tr.classList.add('rij-verlopen');
-      const badge = isAbonnement
-        ? '<span class="badge badge-abonnement">Abonnement</span>'
-        : '<span class="badge badge-ritten">Ritten</span>';
-      const saldoClass = !isAbonnement && Number(lid.saldo) <= 2 ? 'saldo-laag' : '';
       const saldoOfVerval = isAbonnement ? (lid.vervalDatum || '-') : lid.saldo;
-      tr.innerHTML =
-        '<td>' + lid.lidnummer + '</td>' +
-        '<td>' + lid.naam + '</td>' +
-        '<td>' + badge + '</td>' +
-        '<td class="' + saldoClass + '">' + saldoOfVerval + '</td>' +
-        '<td>' + (lid.laatsteScan || '-') + '</td>' +
-        '<td style="white-space:nowrap;">' +
-        '<button class="icon-btn" title="Opwaarderen/verlengen" onclick="gaNaarOpwaarderen(\\'' + lid.lidnummer + '\\')">\uD83D\uDCB3</button>' +
-        '<button class="icon-btn" title="Verwijderen" onclick="verwijderLid(\\'' + lid.lidnummer + '\\', \\'' + String(lid.naam).replace(/'/g, "\\\\'") + '\\')">\uD83D\uDDD1\uFE0F</button>' +
-        '</td>';
+
+      const tr = document.createElement('tr');
+      if (lid.verlopen) tr.classList.add('rij-verlopen');
+
+      const tdLidnr = document.createElement('td');
+      tdLidnr.textContent = lid.lidnummer;
+
+      const tdNaam = document.createElement('td');
+      tdNaam.textContent = lid.naam;
+
+      const tdType = document.createElement('td');
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (isAbonnement ? 'badge-abonnement' : 'badge-ritten');
+      badge.textContent = isAbonnement ? 'Abonnement' : 'Ritten';
+      tdType.appendChild(badge);
+
+      const tdSaldo = document.createElement('td');
+      if (!isAbonnement && Number(lid.saldo) <= 2) tdSaldo.classList.add('saldo-laag');
+      tdSaldo.textContent = saldoOfVerval;
+
+      const tdLaatste = document.createElement('td');
+      tdLaatste.textContent = lid.laatsteScan || '-';
+
+      const tdActies = document.createElement('td');
+      tdActies.style.whiteSpace = 'nowrap';
+
+      const btnOpwaarderen = document.createElement('button');
+      btnOpwaarderen.className = 'icon-btn';
+      btnOpwaarderen.title = 'Opwaarderen/verlengen';
+      btnOpwaarderen.textContent = '\uD83D\uDCB3';
+      btnOpwaarderen.addEventListener('click', () => gaNaarOpwaarderen(lid.lidnummer));
+
+      const btnVerwijderen = document.createElement('button');
+      btnVerwijderen.className = 'icon-btn';
+      btnVerwijderen.title = 'Verwijderen';
+      btnVerwijderen.textContent = '\uD83D\uDDD1\uFE0F';
+      btnVerwijderen.addEventListener('click', () => verwijderLid(lid.lidnummer, lid.naam));
+
+      tdActies.appendChild(btnOpwaarderen);
+      tdActies.appendChild(btnVerwijderen);
+
+      tr.appendChild(tdLidnr);
+      tr.appendChild(tdNaam);
+      tr.appendChild(tdType);
+      tr.appendChild(tdSaldo);
+      tr.appendChild(tdLaatste);
+      tr.appendChild(tdActies);
       tbody.appendChild(tr);
     });
   }
