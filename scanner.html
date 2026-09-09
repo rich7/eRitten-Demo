@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!--- v3 --> 
 <html lang="nl">
+<!--- v3.2 met beep -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -329,12 +329,12 @@
         osc.type = 'square';
         osc.frequency.value = 220;
         osc.start();
-        osc.stop(ctxAudio.currentTime + 0.35);
+        osc.stop(ctxAudio.currentTime + 1.2);
       }
     } catch (e) { /* geluid niet ondersteund, geen probleem */ }
 
     if (navigator.vibrate) {
-      navigator.vibrate(toegestaan ? 120 : [100, 80, 100]);
+      navigator.vibrate(toegestaan ? 120 : 1200);
     }
   }
 
