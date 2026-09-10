@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<!---admin V3 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rittenkaart - Admin</title>
@@ -65,6 +64,16 @@
   }
   button.danger { background: var(--danger); }
   button.danger:hover { background: #8f1e17; }
+  button.link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    padding: 0;
+    margin: 0;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
+  }
   .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.88rem; display: none; }
   .msg.ok { background: var(--success-bg); color: var(--primary-dark); display: block; }
   .msg.err { background: var(--danger-bg); color: var(--danger); display: block; }
@@ -76,6 +85,11 @@
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
   .badge-ritten { background: #e3edff; color: #2952a3; }
   .badge-abonnement { background: #f1e6ff; color: #6b21a8; }
+  .naam-link {
+    background: none; border: none; padding: 0; margin: 0;
+    color: var(--primary); font-weight: 600; text-decoration: underline;
+    cursor: pointer; font-size: inherit;
+  }
   .icon-btn {
     background: none;
     border: none;
@@ -87,7 +101,7 @@
   }
   .icon-btn:hover { background: var(--bg); }
   #loginScreen { max-width: 340px; margin: 80px auto; }
-  .hidden { display: none; }
+  .hidden { display: none !important; }
   .tabs {
     display: flex;
     gap: 4px;
@@ -125,40 +139,80 @@
   }
   .type-keuze input { width: auto; }
   .subveld { display: none; }
-  .lid-info-box {
-    margin-top: 14px;
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fafbfc;
-    display: none;
+  .checkbox-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.88rem; color: var(--text); margin: 12px 0 0;
+    cursor: pointer;
   }
-  .lid-info-box .naam { font-weight: 600; margin-bottom: 4px; }
+  .checkbox-label input { width: auto; margin: 0; }
+
+  /* Modal (lid-detail) */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px; overflow-y: auto; z-index: 100;
+  }
+  .modal-card {
+    background: white; border-radius: 12px; padding: 20px; max-width: 420px;
+    width: 100%; position: relative; margin-top: 40px;
+  }
+  .modal-sluiten {
+    position: absolute; top: 12px; right: 12px; background: none; border: none;
+    font-size: 1.2rem; cursor: pointer; margin: 0; padding: 4px 8px; color: var(--muted);
+  }
+  .detail-info { font-size: 0.9rem; color: var(--muted); margin-bottom: 6px; }
+  .detail-acties { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .detail-acties button { margin-top: 0; flex: 1; min-width: 120px; }
+
+  .login-wissel { text-align: center; margin-top: 16px; font-size: 0.85rem; }
 </style>
 </head>
 <body>
 
 <div id="loginScreen" class="card">
   <h1>Rittenkaart admin</h1>
-  <p class="subtitle">Voer het adminwachtwoord in</p>
-  <form id="loginForm" onsubmit="login(event); return false;">
-    <input type="text" name="username" value="rittenkaart-admin" autocomplete="username" style="display:none">
-    <label>Wachtwoord</label>
-    <input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="Wachtwoord">
-    <button type="submit">Inloggen</button>
-  </form>
+
+  <div id="loginHoofdbeheerder">
+    <p class="subtitle">Inloggen als hoofdbeheerder</p>
+    <form onsubmit="loginHoofdbeheerder(event); return false;">
+      <input type="text" name="username" value="rittenkaart-hoofdbeheerder" autocomplete="username" style="display:none">
+      <label>Hoofdbeheerder-wachtwoord</label>
+      <input type="password" id="hoofdbeheerderWachtwoord" name="password" autocomplete="current-password" placeholder="Wachtwoord">
+      <button type="submit">Inloggen</button>
+    </form>
+    <p class="login-wissel">
+      Ben je beheerder met een eigen inlog?
+      <button class="link" onclick="toonBeheerderLogin()">Log hier in</button>
+    </p>
+  </div>
+
+  <div id="loginBeheerder" class="hidden">
+    <p class="subtitle">Inloggen als beheerder</p>
+    <form onsubmit="loginBeheerder(event); return false;">
+      <label>Gebruikersnaam</label>
+      <input type="text" id="beheerderGebruikersnaam" autocomplete="username" placeholder="Jouw gebruikersnaam">
+      <label>Wachtwoord</label>
+      <input type="password" id="beheerderWachtwoordVeld" autocomplete="current-password" placeholder="Wachtwoord">
+      <button type="submit">Inloggen</button>
+    </form>
+    <p class="login-wissel">
+      Ben je de hoofdbeheerder?
+      <button class="link" onclick="toonHoofdbeheerderLogin()">Log hier in</button>
+    </p>
+  </div>
+
   <div id="loginMsg" class="msg"></div>
 </div>
 
 <div id="app" class="wrap hidden">
   <h1 id="verenigingTitel">Rittenkaart admin</h1>
-  <p class="subtitle">Beheer leden, ritsaldo's en abonnementen</p>
+  <p class="subtitle" id="ingelogdAlsTekst">Beheer leden, ritsaldo's en abonnementen</p>
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="nieuwLid" onclick="wisselTab('nieuwLid')">Nieuw lid</button>
-    <button class="tab-btn" data-tab="opwaarderen" onclick="wisselTab('opwaarderen')">Opwaarderen</button>
     <button class="tab-btn" data-tab="ledenOverzicht" onclick="wisselTab('ledenOverzicht')">Leden overzicht</button>
     <button class="tab-btn" data-tab="scanners" onclick="wisselTab('scanners')">Scanners</button>
+    <button class="tab-btn hidden" id="tabBtnBeheerders" data-tab="beheerders" onclick="wisselTab('beheerders')">Beheerders</button>
     <button class="tab-btn" data-tab="instellingen" onclick="wisselTab('instellingen')">Instellingen</button>
   </div>
 
@@ -193,46 +247,13 @@
         </select>
       </div>
 
-      <button onclick="addMember()">Lid toevoegen &amp; QR mailen</button>
+      <label class="checkbox-label">
+        <input type="checkbox" id="newStuurMail" checked>
+        QR-code mailen naar het lid
+      </label>
+
+      <button onclick="addMember()">Lid toevoegen</button>
       <div id="addMsg" class="msg"></div>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="tab-opwaarderen">
-    <div class="card">
-      <h2>Opwaarderen / verlengen</h2>
-      <label>Lidnummer</label>
-      <input id="zoekLidnummer" placeholder="bv. 1042">
-      <button class="secondary" onclick="zoekLid()">Lid opzoeken</button>
-      <div id="zoekMsg" class="msg"></div>
-
-      <div id="lidInfoBox" class="lid-info-box">
-        <div class="naam" id="lidInfoNaam"></div>
-        <div id="lidInfoDetail"></div>
-        <button class="secondary" style="margin-top:10px;" onclick="printPasGevondenLid()">Pas afdrukken</button>
-      </div>
-
-      <div id="rittenVeld" class="subveld">
-        <label>Aantal ritten erbij</label>
-        <input id="topUpAantal" type="number" min="1" value="10">
-        <button onclick="topUpRitten()">Ritten opwaarderen</button>
-      </div>
-
-      <div id="abonnementVeld" class="subveld">
-        <label>Verlengen met</label>
-        <select id="verlengDuur">
-          <option value="maand">1 maand</option>
-          <option value="halfjaar">Half jaar</option>
-          <option value="jaar">1 jaar</option>
-        </select>
-        <button onclick="verlengAbonnement()">Abonnement verlengen</button>
-      </div>
-
-      <div id="topUpMsg" class="msg"></div>
-
-      <div id="verwijderVeld" class="subveld">
-        <button class="danger" onclick="verwijderGevondenLid()">Lid verwijderen</button>
-      </div>
     </div>
   </div>
 
@@ -245,10 +266,11 @@
       <div id="membersMsg" class="msg"></div>
       <table id="membersTable">
         <thead>
-          <tr><th>Lidnr</th><th>Naam</th><th>Type</th><th>Saldo / Vervaldatum</th><th>Laatste scan</th><th></th></tr>
+          <tr><th>Lidnr</th><th>Naam</th><th>Type</th><th>Saldo / Vervaldatum</th><th>Laatste scan</th></tr>
         </thead>
         <tbody></tbody>
       </table>
+      <p class="subtitle" style="margin:12px 0 0;">Klik op een naam voor opwaarderen/verlengen, pas afdrukken, e-mail opnieuw sturen of verwijderen.</p>
     </div>
   </div>
 
@@ -277,6 +299,33 @@
     </div>
   </div>
 
+  <div class="tab-panel" id="tab-beheerders">
+    <div class="card">
+      <h2>Beheerders</h2>
+      <p class="subtitle" style="margin-bottom:14px;">
+        Alleen de hoofdbeheerder kan hier beheerders toevoegen of verwijderen. Een beheerder heeft verder
+        dezelfde rechten als de hoofdbeheerder, en hoeft geen lid te zijn.
+      </p>
+      <label>Gebruikersnaam</label>
+      <input id="newBeheerderGebruikersnaam" placeholder="bv. penningmeester">
+      <label>Naam</label>
+      <input id="newBeheerderNaam" placeholder="Voor- en achternaam">
+      <label>Wachtwoord</label>
+      <input id="newBeheerderWachtwoord" type="text" placeholder="minstens 4 tekens">
+      <button onclick="addBeheerder()">Beheerder toevoegen</button>
+      <div id="beheerderAddMsg" class="msg"></div>
+
+      <h3>Bestaande beheerders</h3>
+      <table id="beheerdersTable">
+        <thead>
+          <tr><th>Gebruikersnaam</th><th>Naam</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="beheerdersMsg" class="msg"></div>
+    </div>
+  </div>
+
   <div class="tab-panel" id="tab-instellingen">
     <div class="card">
       <h2>Instellingen</h2>
@@ -291,20 +340,51 @@
       <button onclick="saveScanCooldown()">Opslaan</button>
       <div id="scanCooldownMsg" class="msg"></div>
 
-      <h3>Wachtwoord wijzigen</h3>
-      <form onsubmit="wijzigWachtwoord(event); return false;">
-        <input type="text" name="username" value="rittenkaart-admin" autocomplete="username" style="display:none">
-        <label>Nieuw wachtwoord</label>
-        <input id="nieuwWachtwoord" name="new-password" type="password" autocomplete="new-password">
-        <label>Herhaal nieuw wachtwoord</label>
-        <input id="nieuwWachtwoordHerhaal" name="new-password-herhaal" type="password" autocomplete="new-password">
-        <button type="submit">Wachtwoord wijzigen</button>
-      </form>
-      <div id="wachtwoordMsg" class="msg"></div>
-      <p style="font-size:0.8rem;color:var(--muted);margin-top:10px;">
-        Wachtwoord vergeten? Dat kan alleen hersteld worden via Scripteigenschappen
-        in de Apps Script-editor zelf (zie README).
+      <p style="font-size:0.8rem;color:var(--muted);margin-top:20px;padding-top:14px;border-top:1px solid var(--border);">
+        Hoofdbeheerder-wachtwoord wijzigen kan alleen via Scripteigenschappen in de Apps Script-editor
+        (zie README). Een beheerder-wachtwoord reset je door de beheerder te verwijderen en opnieuw
+        aan te maken bij tab "Beheerders".
       </p>
+    </div>
+  </div>
+</div>
+
+<div id="lidDetailOverlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <button class="modal-sluiten" onclick="sluitLidDetail()">&#10005;</button>
+    <h2 id="detailNaam"></h2>
+    <div class="detail-info" id="detailInfo"></div>
+
+    <div id="detailRittenVeld" class="subveld">
+      <label>Aantal ritten erbij</label>
+      <input id="detailTopUpAantal" type="number" min="1" value="10">
+      <label class="checkbox-label">
+        <input type="checkbox" id="detailTopUpMail">
+        Bevestigingsmail sturen
+      </label>
+      <button onclick="detailTopUpRitten()">Ritten opwaarderen</button>
+    </div>
+
+    <div id="detailAbonnementVeld" class="subveld">
+      <label>Verlengen met</label>
+      <select id="detailVerlengDuur">
+        <option value="maand">1 maand</option>
+        <option value="halfjaar">Half jaar</option>
+        <option value="jaar">1 jaar</option>
+      </select>
+      <label class="checkbox-label">
+        <input type="checkbox" id="detailVerlengMail">
+        Bevestigingsmail sturen
+      </label>
+      <button onclick="detailVerlengAbonnement()">Abonnement verlengen</button>
+    </div>
+
+    <div id="detailMsg" class="msg"></div>
+
+    <div class="detail-acties">
+      <button class="secondary" onclick="detailPrintPas()">Pas afdrukken</button>
+      <button class="secondary" onclick="detailStuurEmailOpnieuw()">E-mail opnieuw sturen</button>
+      <button class="danger" onclick="detailVerwijderLid()">Lid verwijderen</button>
     </div>
   </div>
 </div>
@@ -314,13 +394,15 @@
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx39GhCUTB7qq7Fg4xdVWqK5vozI2LsgmSokAKSzSmBfdT34QrVtY33YxsFBjlzPQjxHg/exec';
   // -----------------------------------------------------------------
 
-  let adminPassword = '';
+  // Inloggegevens - precies één van deze twee paren is gevuld na inloggen.
+  let credentials = {};
+  let isHoofdbeheerder = false;
   let gevondenLid = null;
   let ledenCache = [];
   let verenigingNaamGlobaal = '';
 
   async function callApi(action, extra) {
-    const body = Object.assign({ action: action, adminPassword: adminPassword }, extra || {});
+    const body = Object.assign({ action: action }, credentials, extra || {});
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify(body)
@@ -355,26 +437,59 @@
     document.querySelectorAll('.msg').forEach(el => { el.className = 'msg'; });
   }
 
-  async function login(e) {
+  function toonBeheerderLogin() {
+    document.getElementById('loginHoofdbeheerder').classList.add('hidden');
+    document.getElementById('loginBeheerder').classList.remove('hidden');
+    document.getElementById('loginMsg').className = 'msg';
+  }
+
+  function toonHoofdbeheerderLogin() {
+    document.getElementById('loginBeheerder').classList.add('hidden');
+    document.getElementById('loginHoofdbeheerder').classList.remove('hidden');
+    document.getElementById('loginMsg').className = 'msg';
+  }
+
+  async function loginHoofdbeheerder(e) {
     if (e) e.preventDefault();
-    const pw = document.getElementById('loginPassword').value;
+    const pw = document.getElementById('hoofdbeheerderWachtwoord').value;
     if (!pw) return;
     try {
-      const data = await (async () => {
-        adminPassword = pw;
-        return await callApi('checkAdminPassword');
-      })();
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('app').classList.remove('hidden');
-      document.getElementById('verenigingTitel').textContent = 'Rittenkaart admin - ' + data.verenigingNaam;
-      verenigingNaamGlobaal = data.verenigingNaam;
-      document.getElementById('berichtDuur').value = data.berichtDuurSeconden;
-      document.getElementById('scanCooldown').value = data.scanCooldownMinuten;
-      loadMembers();
+      credentials = { adminPassword: pw };
+      const data = await callApi('checkAdminPassword');
+      naLoginGelukt(data);
     } catch (err) {
-      adminPassword = '';
+      credentials = {};
       showMsg('loginMsg', err.message, false);
     }
+  }
+
+  async function loginBeheerder(e) {
+    if (e) e.preventDefault();
+    const gebruikersnaam = document.getElementById('beheerderGebruikersnaam').value.trim();
+    const pw = document.getElementById('beheerderWachtwoordVeld').value;
+    if (!gebruikersnaam || !pw) return;
+    try {
+      credentials = { beheerderGebruikersnaam: gebruikersnaam, beheerderWachtwoord: pw };
+      const data = await callApi('checkBeheerderLogin');
+      naLoginGelukt(data);
+    } catch (err) {
+      credentials = {};
+      showMsg('loginMsg', err.message, false);
+    }
+  }
+
+  function naLoginGelukt(data) {
+    isHoofdbeheerder = !!data.isHoofdbeheerder;
+    verenigingNaamGlobaal = data.verenigingNaam;
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('verenigingTitel').textContent = 'Rittenkaart admin - ' + data.verenigingNaam;
+    document.getElementById('ingelogdAlsTekst').textContent =
+      isHoofdbeheerder ? 'Ingelogd als hoofdbeheerder' : 'Ingelogd als beheerder' + (data.naam ? ' (' + data.naam + ')' : '');
+    document.getElementById('tabBtnBeheerders').classList.toggle('hidden', !isHoofdbeheerder);
+    document.getElementById('berichtDuur').value = data.berichtDuurSeconden;
+    document.getElementById('scanCooldown').value = data.scanCooldownMinuten;
+    loadMembers();
   }
 
   function wisselTab(naam) {
@@ -382,8 +497,8 @@
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + naam));
     wisMeldingen();
     if (naam === 'ledenOverzicht') loadMembers();
-    if (naam === 'opwaarderen') resetOpwaardeerBlok();
     if (naam === 'scanners') loadScannerGebruikers();
+    if (naam === 'beheerders') loadBeheerders();
   }
 
   function wisselNieuwType() {
@@ -411,127 +526,22 @@
     }
   }
 
-  async function wijzigWachtwoord(e) {
-    if (e) e.preventDefault();
-    const nieuw = document.getElementById('nieuwWachtwoord').value;
-    const herhaal = document.getElementById('nieuwWachtwoordHerhaal').value;
-    if (!nieuw || nieuw !== herhaal) {
-      showMsg('wachtwoordMsg', 'De wachtwoorden komen niet overeen.', false);
-      return;
-    }
-    try {
-      await callApi('setAdminPassword', { nieuwWachtwoord: nieuw });
-      adminPassword = nieuw;
-      document.getElementById('nieuwWachtwoord').value = '';
-      document.getElementById('nieuwWachtwoordHerhaal').value = '';
-      showMsg('wachtwoordMsg', 'Wachtwoord gewijzigd.', true);
-    } catch (err) {
-      showMsg('wachtwoordMsg', err.message, false);
-    }
-  }
-
   async function addMember() {
     const lidnummer = document.getElementById('newLidnummer').value.trim();
     const naam = document.getElementById('newNaam').value.trim();
     const email = document.getElementById('newEmail').value.trim();
     const type = document.querySelector('input[name="newType"]:checked').value;
     const duur = document.getElementById('newDuur').value;
+    const stuurMail = document.getElementById('newStuurMail').checked;
     try {
-      await callApi('addMember', { lidnummer, naam, email, type, duur });
-      showMsg('addMsg', 'Lid toegevoegd, QR-code is gemaild.', true);
+      await callApi('addMember', { lidnummer, naam, email, type, duur, stuurMail });
+      showMsg('addMsg', stuurMail ? 'Lid toegevoegd, QR-code is gemaild.' : 'Lid toegevoegd (geen mail verstuurd).', true);
       document.getElementById('newLidnummer').value = '';
       document.getElementById('newNaam').value = '';
       document.getElementById('newEmail').value = '';
       loadMembers();
     } catch (err) {
       showMsg('addMsg', err.message, false);
-    }
-  }
-
-  function resetOpwaardeerBlok() {
-    gevondenLid = null;
-    document.getElementById('lidInfoBox').style.display = 'none';
-    document.getElementById('rittenVeld').style.display = 'none';
-    document.getElementById('abonnementVeld').style.display = 'none';
-    document.getElementById('verwijderVeld').style.display = 'none';
-    document.getElementById('zoekLidnummer').value = '';
-    document.getElementById('zoekMsg').className = 'msg';
-    document.getElementById('topUpMsg').className = 'msg';
-  }
-
-  async function zoekLid() {
-    const lidnummer = document.getElementById('zoekLidnummer').value.trim();
-    if (!lidnummer) return;
-    try {
-      const data = await callApi('getMemberInfo', { lidnummer });
-      gevondenLid = data;
-      document.getElementById('lidInfoNaam').textContent = data.naam;
-      document.getElementById('lidInfoDetail').textContent =
-        data.type === 'Abonnement'
-          ? 'Abonnement, geldig t/m ' + (data.vervalDatum || '-')
-          : 'Rittenkaart, saldo: ' + data.saldo + ' ritten';
-      document.getElementById('lidInfoBox').style.display = 'block';
-      document.getElementById('rittenVeld').style.display = data.type === 'Abonnement' ? 'none' : 'block';
-      document.getElementById('abonnementVeld').style.display = data.type === 'Abonnement' ? 'block' : 'none';
-      document.getElementById('verwijderVeld').style.display = 'block';
-      document.getElementById('zoekMsg').className = 'msg';
-    } catch (err) {
-      gevondenLid = null;
-      document.getElementById('lidInfoBox').style.display = 'none';
-      document.getElementById('rittenVeld').style.display = 'none';
-      document.getElementById('abonnementVeld').style.display = 'none';
-      document.getElementById('verwijderVeld').style.display = 'none';
-      showMsg('zoekMsg', err.message, false);
-    }
-  }
-
-  function gaNaarOpwaarderen(lidnummer) {
-    wisselTab('opwaarderen');
-    document.getElementById('zoekLidnummer').value = lidnummer;
-    zoekLid();
-  }
-
-  async function topUpRitten() {
-    if (!gevondenLid) return;
-    const aantal = document.getElementById('topUpAantal').value;
-    try {
-      const data = await callApi('topUpRitten', { lidnummer: gevondenLid.lidnummer, aantal });
-      showMsg('topUpMsg', 'Nieuw saldo voor lid ' + gevondenLid.lidnummer + ': ' + data.nieuwSaldo + ' ritten.', true);
-      loadMembers();
-      zoekLid();
-    } catch (err) {
-      showMsg('topUpMsg', err.message, false);
-    }
-  }
-
-  async function verlengAbonnement() {
-    if (!gevondenLid) return;
-    const duur = document.getElementById('verlengDuur').value;
-    try {
-      const data = await callApi('verlengAbonnement', { lidnummer: gevondenLid.lidnummer, duur });
-      showMsg('topUpMsg', 'Abonnement voor lid ' + gevondenLid.lidnummer + ' is nu geldig t/m ' + data.nieuweVervalDatum + '.', true);
-      loadMembers();
-      zoekLid();
-    } catch (err) {
-      showMsg('topUpMsg', err.message, false);
-    }
-  }
-
-  async function verwijderGevondenLid() {
-    if (!gevondenLid) return;
-    verwijderLid(gevondenLid.lidnummer, gevondenLid.naam);
-  }
-
-  async function verwijderLid(lidnummer, naam) {
-    const zeker = window.confirm('Weet je zeker dat je ' + naam + ' (lid ' + lidnummer + ') wilt verwijderen? Dit kan niet ongedaan gemaakt worden.');
-    if (!zeker) return;
-    try {
-      await callApi('deleteMember', { lidnummer });
-      showMsg('topUpMsg', 'Lid ' + lidnummer + ' is verwijderd.', true);
-      resetOpwaardeerBlok();
-      loadMembers();
-    } catch (err) {
-      showMsg('membersMsg', err.message, false);
     }
   }
 
@@ -572,7 +582,11 @@
       tdLidnr.textContent = lid.lidnummer;
 
       const tdNaam = document.createElement('td');
-      tdNaam.textContent = lid.naam;
+      const naamBtn = document.createElement('button');
+      naamBtn.className = 'naam-link';
+      naamBtn.textContent = lid.naam;
+      naamBtn.addEventListener('click', () => openLidDetail(lid.lidnummer));
+      tdNaam.appendChild(naamBtn);
 
       const tdType = document.createElement('td');
       const badge = document.createElement('span');
@@ -587,105 +601,93 @@
       const tdLaatste = document.createElement('td');
       tdLaatste.textContent = lid.laatsteScan || '-';
 
-      const tdActies = document.createElement('td');
-      tdActies.style.whiteSpace = 'nowrap';
-
-      const btnOpwaarderen = document.createElement('button');
-      btnOpwaarderen.className = 'icon-btn';
-      btnOpwaarderen.title = 'Opwaarderen/verlengen';
-      btnOpwaarderen.textContent = '\uD83D\uDCB3';
-      btnOpwaarderen.addEventListener('click', () => gaNaarOpwaarderen(lid.lidnummer));
-
-      const btnVerwijderen = document.createElement('button');
-      btnVerwijderen.className = 'icon-btn';
-      btnVerwijderen.title = 'Verwijderen';
-      btnVerwijderen.textContent = '\uD83D\uDDD1\uFE0F';
-      btnVerwijderen.addEventListener('click', () => verwijderLid(lid.lidnummer, lid.naam));
-
-      const btnPrint = document.createElement('button');
-      btnPrint.className = 'icon-btn';
-      btnPrint.title = 'Pas afdrukken';
-      btnPrint.textContent = '\uD83D\uDDA8\uFE0F';
-      btnPrint.addEventListener('click', () => printPas(lid.lidnummer));
-
-      tdActies.appendChild(btnOpwaarderen);
-      tdActies.appendChild(btnPrint);
-      tdActies.appendChild(btnVerwijderen);
-
       tr.appendChild(tdLidnr);
       tr.appendChild(tdNaam);
       tr.appendChild(tdType);
       tr.appendChild(tdSaldo);
       tr.appendChild(tdLaatste);
-      tr.appendChild(tdActies);
       tbody.appendChild(tr);
     });
   }
 
-  async function addScannerGebruiker() {
-    const lidnummer = document.getElementById('newScannerLidnummer').value.trim();
-    const wachtwoord = document.getElementById('newScannerWachtwoord').value.trim();
+  // ---- Lid-detail modal ----
+
+  async function openLidDetail(lidnummer) {
     try {
-      await callApi('addScannerGebruiker', { lidnummer, wachtwoord });
-      showMsg('scannerAddMsg', 'Scanner-gebruiker toegevoegd.', true);
-      document.getElementById('newScannerLidnummer').value = '';
-      document.getElementById('newScannerWachtwoord').value = '';
-      loadScannerGebruikers();
+      gevondenLid = await callApi('getMemberInfo', { lidnummer });
+      document.getElementById('detailNaam').textContent = gevondenLid.naam;
+      document.getElementById('detailInfo').textContent =
+        gevondenLid.type === 'Abonnement'
+          ? 'Abonnement, geldig t/m ' + (gevondenLid.vervalDatum || '-')
+          : 'Rittenkaart, saldo: ' + gevondenLid.saldo + ' ritten';
+      document.getElementById('detailRittenVeld').style.display = gevondenLid.type === 'Abonnement' ? 'none' : 'block';
+      document.getElementById('detailAbonnementVeld').style.display = gevondenLid.type === 'Abonnement' ? 'block' : 'none';
+      document.getElementById('detailTopUpMail').checked = false;
+      document.getElementById('detailVerlengMail').checked = false;
+      wisMeldingen();
+      document.getElementById('lidDetailOverlay').classList.remove('hidden');
     } catch (err) {
-      showMsg('scannerAddMsg', err.message, false);
+      showMsg('membersMsg', err.message, false);
     }
   }
 
-  async function loadScannerGebruikers() {
+  function sluitLidDetail() {
+    document.getElementById('lidDetailOverlay').classList.add('hidden');
+    gevondenLid = null;
+  }
+
+  async function detailTopUpRitten() {
+    if (!gevondenLid) return;
+    const aantal = document.getElementById('detailTopUpAantal').value;
+    const stuurMail = document.getElementById('detailTopUpMail').checked;
     try {
-      const gebruikers = await callApi('getScannerGebruikers');
-      renderScannersTabel(gebruikers);
-      document.getElementById('scannersMsg').className = 'msg';
+      const data = await callApi('topUpRitten', { lidnummer: gevondenLid.lidnummer, aantal, stuurMail });
+      showMsg('detailMsg', 'Nieuw saldo: ' + data.nieuwSaldo + ' ritten' + (stuurMail ? ' (mail verstuurd).' : '.'), true);
+      loadMembers();
+      openLidDetail(gevondenLid.lidnummer);
     } catch (err) {
-      showMsg('scannersMsg', err.message, false);
+      showMsg('detailMsg', err.message, false);
     }
   }
 
-  async function verwijderScannerGebruiker(lidnummer) {
-    const zeker = window.confirm('Scanner-toegang voor lid ' + lidnummer + ' intrekken?');
+  async function detailVerlengAbonnement() {
+    if (!gevondenLid) return;
+    const duur = document.getElementById('detailVerlengDuur').value;
+    const stuurMail = document.getElementById('detailVerlengMail').checked;
+    try {
+      const data = await callApi('verlengAbonnement', { lidnummer: gevondenLid.lidnummer, duur, stuurMail });
+      showMsg('detailMsg', 'Geldig t/m ' + data.nieuweVervalDatum + (stuurMail ? ' (mail verstuurd).' : '.'), true);
+      loadMembers();
+      openLidDetail(gevondenLid.lidnummer);
+    } catch (err) {
+      showMsg('detailMsg', err.message, false);
+    }
+  }
+
+  async function detailStuurEmailOpnieuw() {
+    if (!gevondenLid) return;
+    try {
+      const data = await callApi('stuurWelkomstMailOpnieuw', { lidnummer: gevondenLid.lidnummer });
+      showMsg('detailMsg', 'E-mail (opnieuw) verstuurd naar ' + data.email + '.', true);
+    } catch (err) {
+      showMsg('detailMsg', err.message, false);
+    }
+  }
+
+  async function detailVerwijderLid() {
+    if (!gevondenLid) return;
+    const zeker = window.confirm('Weet je zeker dat je ' + gevondenLid.naam + ' (lid ' + gevondenLid.lidnummer + ') wilt verwijderen? Dit kan niet ongedaan gemaakt worden.');
     if (!zeker) return;
     try {
-      await callApi('removeScannerGebruiker', { lidnummer });
-      showMsg('scannersMsg', 'Scanner-toegang voor lid ' + lidnummer + ' ingetrokken.', true);
-      loadScannerGebruikers();
+      await callApi('deleteMember', { lidnummer: gevondenLid.lidnummer });
+      sluitLidDetail();
+      loadMembers();
     } catch (err) {
-      showMsg('scannersMsg', err.message, false);
+      showMsg('detailMsg', err.message, false);
     }
   }
 
-  function renderScannersTabel(gebruikers) {
-    const tbody = document.querySelector('#scannersTable tbody');
-    tbody.innerHTML = '';
-    gebruikers.forEach(g => {
-      const tr = document.createElement('tr');
-
-      const tdLidnr = document.createElement('td');
-      tdLidnr.textContent = g.lidnummer;
-
-      const tdNaam = document.createElement('td');
-      tdNaam.textContent = g.naam || '-';
-
-      const tdActie = document.createElement('td');
-      const btnVerwijder = document.createElement('button');
-      btnVerwijder.className = 'icon-btn';
-      btnVerwijder.title = 'Scanner-toegang intrekken';
-      btnVerwijder.textContent = '\uD83D\uDDD1\uFE0F';
-      btnVerwijder.addEventListener('click', () => verwijderScannerGebruiker(g.lidnummer));
-      tdActie.appendChild(btnVerwijder);
-
-      tr.appendChild(tdLidnr);
-      tr.appendChild(tdNaam);
-      tr.appendChild(tdActie);
-      tbody.appendChild(tr);
-    });
-  }
-
-  function printPasGevondenLid() {
+  function detailPrintPas() {
     if (!gevondenLid) return;
     printPas(gevondenLid.lidnummer);
   }
@@ -771,6 +773,139 @@
           '<p style="font-family:sans-serif;padding:20px;color:#b3261e;">' + err.message + '</p>';
       }
     }
+  }
+
+  // ---- Scanner-gebruikers ----
+
+  async function addScannerGebruiker() {
+    const lidnummer = document.getElementById('newScannerLidnummer').value.trim();
+    const wachtwoord = document.getElementById('newScannerWachtwoord').value.trim();
+    try {
+      await callApi('addScannerGebruiker', { lidnummer, wachtwoord });
+      showMsg('scannerAddMsg', 'Scanner-gebruiker toegevoegd.', true);
+      document.getElementById('newScannerLidnummer').value = '';
+      document.getElementById('newScannerWachtwoord').value = '';
+      loadScannerGebruikers();
+    } catch (err) {
+      showMsg('scannerAddMsg', err.message, false);
+    }
+  }
+
+  async function loadScannerGebruikers() {
+    try {
+      const gebruikers = await callApi('getScannerGebruikers');
+      renderScannersTabel(gebruikers);
+      document.getElementById('scannersMsg').className = 'msg';
+    } catch (err) {
+      showMsg('scannersMsg', err.message, false);
+    }
+  }
+
+  async function verwijderScannerGebruiker(lidnummer) {
+    const zeker = window.confirm('Scanner-toegang voor lid ' + lidnummer + ' intrekken?');
+    if (!zeker) return;
+    try {
+      await callApi('removeScannerGebruiker', { lidnummer });
+      showMsg('scannersMsg', 'Scanner-toegang voor lid ' + lidnummer + ' ingetrokken.', true);
+      loadScannerGebruikers();
+    } catch (err) {
+      showMsg('scannersMsg', err.message, false);
+    }
+  }
+
+  function renderScannersTabel(gebruikers) {
+    const tbody = document.querySelector('#scannersTable tbody');
+    tbody.innerHTML = '';
+    gebruikers.forEach(g => {
+      const tr = document.createElement('tr');
+
+      const tdLidnr = document.createElement('td');
+      tdLidnr.textContent = g.lidnummer;
+
+      const tdNaam = document.createElement('td');
+      tdNaam.textContent = g.naam || '-';
+
+      const tdActie = document.createElement('td');
+      const btnVerwijder = document.createElement('button');
+      btnVerwijder.className = 'icon-btn';
+      btnVerwijder.title = 'Scanner-toegang intrekken';
+      btnVerwijder.textContent = '\uD83D\uDDD1\uFE0F';
+      btnVerwijder.addEventListener('click', () => verwijderScannerGebruiker(g.lidnummer));
+      tdActie.appendChild(btnVerwijder);
+
+      tr.appendChild(tdLidnr);
+      tr.appendChild(tdNaam);
+      tr.appendChild(tdActie);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---- Beheerders (alleen hoofdbeheerder) ----
+
+  async function addBeheerder() {
+    const gebruikersnaam = document.getElementById('newBeheerderGebruikersnaam').value.trim();
+    const naam = document.getElementById('newBeheerderNaam').value.trim();
+    const wachtwoord = document.getElementById('newBeheerderWachtwoord').value.trim();
+    try {
+      await callApi('addBeheerder', { gebruikersnaam, naam, wachtwoord });
+      showMsg('beheerderAddMsg', 'Beheerder toegevoegd.', true);
+      document.getElementById('newBeheerderGebruikersnaam').value = '';
+      document.getElementById('newBeheerderNaam').value = '';
+      document.getElementById('newBeheerderWachtwoord').value = '';
+      loadBeheerders();
+    } catch (err) {
+      showMsg('beheerderAddMsg', err.message, false);
+    }
+  }
+
+  async function loadBeheerders() {
+    if (!isHoofdbeheerder) return;
+    try {
+      const lijst = await callApi('getBeheerders');
+      renderBeheerdersTabel(lijst);
+      document.getElementById('beheerdersMsg').className = 'msg';
+    } catch (err) {
+      showMsg('beheerdersMsg', err.message, false);
+    }
+  }
+
+  async function verwijderBeheerder(gebruikersnaam) {
+    const zeker = window.confirm('Beheerder "' + gebruikersnaam + '" verwijderen?');
+    if (!zeker) return;
+    try {
+      await callApi('removeBeheerder', { gebruikersnaam });
+      showMsg('beheerdersMsg', 'Beheerder verwijderd.', true);
+      loadBeheerders();
+    } catch (err) {
+      showMsg('beheerdersMsg', err.message, false);
+    }
+  }
+
+  function renderBeheerdersTabel(lijst) {
+    const tbody = document.querySelector('#beheerdersTable tbody');
+    tbody.innerHTML = '';
+    lijst.forEach(b => {
+      const tr = document.createElement('tr');
+
+      const tdGebruikersnaam = document.createElement('td');
+      tdGebruikersnaam.textContent = b.gebruikersnaam;
+
+      const tdNaam = document.createElement('td');
+      tdNaam.textContent = b.naam || '-';
+
+      const tdActie = document.createElement('td');
+      const btnVerwijder = document.createElement('button');
+      btnVerwijder.className = 'icon-btn';
+      btnVerwijder.title = 'Verwijderen';
+      btnVerwijder.textContent = '\uD83D\uDDD1\uFE0F';
+      btnVerwijder.addEventListener('click', () => verwijderBeheerder(b.gebruikersnaam));
+      tdActie.appendChild(btnVerwijder);
+
+      tr.appendChild(tdGebruikersnaam);
+      tr.appendChild(tdNaam);
+      tr.appendChild(tdActie);
+      tbody.appendChild(tr);
+    });
   }
 </script>
 </body>
