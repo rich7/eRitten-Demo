@@ -100,6 +100,15 @@
     border-radius: 6px;
   }
   .icon-btn:hover { background: var(--bg); }
+  .sorteer-balk { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 14px; }
+  .sorteer-label { font-size: 0.82rem; color: var(--muted); margin-right: 2px; }
+  .sorteer-btn {
+    margin-top: 0; background: transparent; color: var(--text);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 12px; font-size: 0.82rem; cursor: pointer;
+  }
+  .sorteer-btn:hover { border-color: var(--primary); }
+  .sorteer-btn.actief { background: var(--primary); color: white; border-color: var(--primary); }
   #loginScreen { max-width: 340px; margin: 80px auto; }
   .hidden { display: none !important; }
   .tabs {
@@ -198,8 +207,8 @@
   <div id="loginBeheerder" class="hidden">
     <p class="subtitle">Inloggen als beheerder</p>
     <form onsubmit="loginBeheerder(event); return false;">
-      <label>Gebruikersnaam</label>
-      <input type="text" id="beheerderGebruikersnaam" autocomplete="username" placeholder="Jouw gebruikersnaam">
+      <label>Lidnummer</label>
+      <input type="text" id="beheerderLidnummer" autocomplete="username" placeholder="Jouw lidnummer">
       <label>Wachtwoord</label>
       <input type="password" id="beheerderWachtwoordVeld" autocomplete="current-password" placeholder="Wachtwoord">
       <button type="submit">Inloggen</button>
@@ -283,7 +292,15 @@
       <h2>Leden overzicht</h2>
       <label>Zoek op naam of lidnummer</label>
       <input id="zoekLedenOverzicht" placeholder="Typ om te filteren..." oninput="filterLedenOverzicht()">
-      <button class="secondary" onclick="loadMembers()">Refresh</button>
+      <button class="secondary" onclick="loadMembers()">&#128260; Verversen</button>
+
+      <div class="sorteer-balk">
+        <span class="sorteer-label">Sorteer op:</span>
+        <button class="sorteer-btn" data-veld="naam" onclick="sorteerLeden('naam')">Naam</button>
+        <button class="sorteer-btn" data-veld="type" onclick="sorteerLeden('type')">Type</button>
+        <button class="sorteer-btn" data-veld="laatsteScan" onclick="sorteerLeden('laatsteScan')">Laatste scan</button>
+      </div>
+
       <div id="membersMsg" class="msg"></div>
       <table id="membersTable">
         <thead>
@@ -325,12 +342,10 @@
       <h2>Beheerders</h2>
       <p class="subtitle" style="margin-bottom:14px;">
         Alleen de hoofdbeheerder kan hier beheerders toevoegen of verwijderen. Een beheerder heeft verder
-        dezelfde rechten als de hoofdbeheerder, en hoeft geen lid te zijn.
+        dezelfde rechten als de hoofdbeheerder, en moet - net als een scanner-gebruiker - altijd al lid zijn.
       </p>
-      <label>Gebruikersnaam</label>
-      <input id="newBeheerderGebruikersnaam" placeholder="bv. penningmeester">
-      <label>Naam</label>
-      <input id="newBeheerderNaam" placeholder="Voor- en achternaam">
+      <label>Lidnummer (bestaand lid)</label>
+      <input id="newBeheerderLidnummer" placeholder="bv. 1042">
       <label>Wachtwoord</label>
       <input id="newBeheerderWachtwoord" type="text" placeholder="minstens 4 tekens">
       <button onclick="addBeheerder()">Beheerder toevoegen</button>
@@ -339,7 +354,7 @@
       <h3>Bestaande beheerders</h3>
       <table id="beheerdersTable">
         <thead>
-          <tr><th>Gebruikersnaam</th><th>Naam</th><th></th></tr>
+          <tr><th>Lidnr</th><th>Naam</th><th></th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -492,11 +507,11 @@
 
   async function loginBeheerder(e) {
     if (e) e.preventDefault();
-    const gebruikersnaam = document.getElementById('beheerderGebruikersnaam').value.trim();
+    const lidnummer = document.getElementById('beheerderLidnummer').value.trim();
     const pw = document.getElementById('beheerderWachtwoordVeld').value;
-    if (!gebruikersnaam || !pw) return;
+    if (!lidnummer || !pw) return;
     try {
-      credentials = { beheerderGebruikersnaam: gebruikersnaam, beheerderWachtwoord: pw };
+      credentials = { beheerderLidnummer: lidnummer, beheerderWachtwoord: pw };
       const data = await callApi('checkBeheerderLogin');
       naLoginGelukt(data);
     } catch (err) {
@@ -636,11 +651,13 @@
     }
   }
 
+  let huidigeSortering = { veld: null, richting: 1 };
+
   async function loadMembers() {
     try {
       ledenCache = await callApi('getMembers');
       document.getElementById('zoekLedenOverzicht').value = '';
-      renderLedenTabel(ledenCache);
+      toonLedenOverzicht();
       document.getElementById('membersMsg').className = 'msg';
     } catch (err) {
       showMsg('membersMsg', err.message, false);
@@ -648,15 +665,46 @@
   }
 
   function filterLedenOverzicht() {
-    const zoek = document.getElementById('zoekLedenOverzicht').value.trim().toLowerCase();
-    if (!zoek) {
-      renderLedenTabel(ledenCache);
-      return;
+    toonLedenOverzicht();
+  }
+
+  function sorteerLeden(veld) {
+    if (huidigeSortering.veld === veld) {
+      huidigeSortering.richting *= -1;
+    } else {
+      huidigeSortering.veld = veld;
+      huidigeSortering.richting = 1;
     }
-    const gefilterd = ledenCache.filter(lid =>
-      String(lid.naam).toLowerCase().includes(zoek) || String(lid.lidnummer).toLowerCase().includes(zoek)
-    );
-    renderLedenTabel(gefilterd);
+    document.querySelectorAll('.sorteer-btn').forEach(b => {
+      const actief = b.dataset.veld === huidigeSortering.veld;
+      b.classList.toggle('actief', actief);
+    });
+    toonLedenOverzicht();
+  }
+
+  function toonLedenOverzicht() {
+    const zoek = document.getElementById('zoekLedenOverzicht').value.trim().toLowerCase();
+    let lijst = zoek
+      ? ledenCache.filter(lid =>
+          String(lid.naam).toLowerCase().includes(zoek) || String(lid.lidnummer).toLowerCase().includes(zoek)
+        )
+      : ledenCache.slice();
+
+    if (huidigeSortering.veld) {
+      const veld = huidigeSortering.veld;
+      const richting = huidigeSortering.richting;
+      lijst.sort((a, b) => {
+        let resultaat;
+        if (veld === 'laatsteScan') {
+          resultaat = (a.laatsteScanTijd || 0) - (b.laatsteScanTijd || 0);
+        } else {
+          resultaat = String(a[veld] || '').localeCompare(String(b[veld] || ''), 'nl');
+        }
+        return resultaat * richting;
+      });
+    }
+
+    renderLedenTabel(lijst);
   }
 
   function renderLedenTabel(leden) {
@@ -940,14 +988,12 @@
   // ---- Beheerders (alleen hoofdbeheerder) ----
 
   async function addBeheerder() {
-    const gebruikersnaam = document.getElementById('newBeheerderGebruikersnaam').value.trim();
-    const naam = document.getElementById('newBeheerderNaam').value.trim();
+    const lidnummer = document.getElementById('newBeheerderLidnummer').value.trim();
     const wachtwoord = document.getElementById('newBeheerderWachtwoord').value.trim();
     try {
-      await callApi('addBeheerder', { gebruikersnaam, naam, wachtwoord });
+      await callApi('addBeheerder', { lidnummer, wachtwoord });
       showMsg('beheerderAddMsg', 'Beheerder toegevoegd.', true);
-      document.getElementById('newBeheerderGebruikersnaam').value = '';
-      document.getElementById('newBeheerderNaam').value = '';
+      document.getElementById('newBeheerderLidnummer').value = '';
       document.getElementById('newBeheerderWachtwoord').value = '';
       loadBeheerders();
     } catch (err) {
@@ -966,11 +1012,11 @@
     }
   }
 
-  async function verwijderBeheerder(gebruikersnaam) {
-    const zeker = window.confirm('Beheerder "' + gebruikersnaam + '" verwijderen?');
+  async function verwijderBeheerder(lidnummer) {
+    const zeker = window.confirm('Beheerder (lid ' + lidnummer + ') verwijderen?');
     if (!zeker) return;
     try {
-      await callApi('removeBeheerder', { gebruikersnaam });
+      await callApi('removeBeheerder', { lidnummer });
       showMsg('beheerdersMsg', 'Beheerder verwijderd.', true);
       loadBeheerders();
     } catch (err) {
@@ -984,8 +1030,8 @@
     lijst.forEach(b => {
       const tr = document.createElement('tr');
 
-      const tdGebruikersnaam = document.createElement('td');
-      tdGebruikersnaam.textContent = b.gebruikersnaam;
+      const tdLidnr = document.createElement('td');
+      tdLidnr.textContent = b.lidnummer;
 
       const tdNaam = document.createElement('td');
       tdNaam.textContent = b.naam || '-';
@@ -995,10 +1041,10 @@
       btnVerwijder.className = 'icon-btn';
       btnVerwijder.title = 'Verwijderen';
       btnVerwijder.textContent = '\uD83D\uDDD1\uFE0F';
-      btnVerwijder.addEventListener('click', () => verwijderBeheerder(b.gebruikersnaam));
+      btnVerwijder.addEventListener('click', () => verwijderBeheerder(b.lidnummer));
       tdActie.appendChild(btnVerwijder);
 
-      tr.appendChild(tdGebruikersnaam);
+      tr.appendChild(tdLidnr);
       tr.appendChild(tdNaam);
       tr.appendChild(tdActie);
       tbody.appendChild(tr);
