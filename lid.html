@@ -137,7 +137,7 @@
       }
       if (!json.success) throw new Error(json.error);
 
-      document.getElementById('resNaam').textContent = json.data.naam;
+      document.getElementById('resNaam').textContent = 'Hoi ' + json.data.naam;
       document.getElementById('resQr').src =
         'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(json.data.token);
 
