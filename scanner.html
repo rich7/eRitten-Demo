@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="nl">
-<!--- v3.2 met beep -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -98,6 +97,61 @@
   #resultOverlay .saldo { font-size: 0.9rem; opacity: 0.85; }
   #status { margin-top: 16px; color: var(--muted); font-size: 0.9rem; text-align: center; }
 
+  #handmatigKnop {
+    margin-top: 14px;
+    width: 100%;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  #handmatigKnop:hover { color: #eee; border-color: #555; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px; overflow-y: auto; z-index: 200;
+  }
+  .hidden { display: none !important; }
+  .modal-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; max-width: 380px; width: 100%; position: relative; margin-top: 40px;
+  }
+  .modal-card h2 { font-size: 1.1rem; margin: 0 0 14px; }
+  .modal-sluiten {
+    position: absolute; top: 10px; right: 10px; background: none; border: none;
+    font-size: 1.2rem; cursor: pointer; margin: 0; padding: 4px 8px; color: var(--muted);
+  }
+  #handmatigZoek {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 0.95rem; background: #10141a; color: #eee;
+  }
+  #handmatigResultaten { margin-top: 10px; max-height: 240px; overflow-y: auto; }
+  .handmatig-result {
+    width: 100%; text-align: left; background: #10141a; color: #eee;
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+    margin-top: 6px; cursor: pointer; font-size: 0.9rem;
+  }
+  .handmatig-result:hover { border-color: var(--primary); }
+  .handmatig-result .lidnr { color: var(--muted); font-size: 0.8rem; }
+
+  #handmatigDetail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .detail-naam { font-size: 1.05rem; font-weight: 700; margin-bottom: 6px; }
+  .status-geldig { color: #8ee89c; font-weight: 600; }
+  .status-verlopen { color: #f29b9b; font-weight: 600; }
+  #handmatigBevestigKnop {
+    width: 100%; margin-top: 12px; padding: 12px; border: none; border-radius: 8px;
+    background: var(--primary); color: white; font-size: 0.95rem; cursor: pointer;
+  }
+  .msg-donker {
+    margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.85rem; display: none;
+  }
+  .msg-donker.ok { background: var(--ok-bg); color: var(--ok-fg); display: block; }
+  .msg-donker.err { background: var(--err-bg); color: var(--err-fg); display: block; }
+
   #hervatOverlay {
     position: absolute;
     inset: 0;
@@ -143,6 +197,24 @@
     </div>
   </div>
   <div id="status">Richt de camera op de QR-code</div>
+  <button id="handmatigKnop" onclick="openHandmatig()">QR vergeten? Handmatig zoeken</button>
+</div>
+
+<div id="handmatigOverlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <button class="modal-sluiten" onclick="sluitHandmatig()">&#10005;</button>
+    <h2>Handmatig zoeken</h2>
+    <input id="handmatigZoek" placeholder="Naam of lidnummer" oninput="zoekHandmatigDebounced()">
+    <div id="handmatigResultaten"></div>
+
+    <div id="handmatigDetail" class="hidden">
+      <div class="detail-naam" id="handmatigDetailNaam"></div>
+      <div id="handmatigDetailStatus"></div>
+      <button id="handmatigBevestigKnop" onclick="bevestigHandmatig()"></button>
+    </div>
+
+    <div id="handmatigMsg" class="msg-donker"></div>
+  </div>
 </div>
 
 <canvas id="canvas" style="display:none;"></canvas>
@@ -154,6 +226,9 @@
   // -----------------------------------------------------------------
 
   let ingelogdLidnummer = '';
+  let handmatigModusActief = false;
+  let handmatigZoekTimer = null;
+  let handmatigGeselecteerd = null;
   let scanning = false;
   let processing = false;
   let cooldownUntil = 0;
@@ -270,6 +345,11 @@
   function scanLoop() {
     if (!scanning) return;
 
+    if (handmatigModusActief) {
+      requestAnimationFrame(scanLoop);
+      return;
+    }
+
     if (processing || Date.now() < cooldownUntil) {
       requestAnimationFrame(scanLoop);
       return;
@@ -351,6 +431,98 @@
     piepEnTril(data.toegestaan);
     document.getElementById('status').textContent = 'Richt de camera op de QR-code';
     setTimeout(() => { overlay.style.display = 'none'; }, berichtDuurMs);
+  }
+
+  // ---- Handmatig zoeken (QR vergeten) ----
+
+  function openHandmatig() {
+    handmatigModusActief = true;
+    document.getElementById('handmatigZoek').value = '';
+    document.getElementById('handmatigResultaten').innerHTML = '';
+    document.getElementById('handmatigDetail').classList.add('hidden');
+    document.getElementById('handmatigMsg').className = 'msg-donker';
+    handmatigGeselecteerd = null;
+    document.getElementById('handmatigOverlay').classList.remove('hidden');
+    document.getElementById('handmatigZoek').focus();
+  }
+
+  function sluitHandmatig() {
+    handmatigModusActief = false;
+    document.getElementById('handmatigOverlay').classList.add('hidden');
+  }
+
+  function zoekHandmatigDebounced() {
+    clearTimeout(handmatigZoekTimer);
+    handmatigZoekTimer = setTimeout(zoekHandmatig, 300);
+  }
+
+  async function zoekHandmatig() {
+    const query = document.getElementById('handmatigZoek').value.trim();
+    const resultatenDiv = document.getElementById('handmatigResultaten');
+    document.getElementById('handmatigDetail').classList.add('hidden');
+    handmatigGeselecteerd = null;
+
+    if (!query) {
+      resultatenDiv.innerHTML = '';
+      return;
+    }
+
+    try {
+      const resultaten = await roepApi({ action: 'zoekLeden', query: query });
+      resultatenDiv.innerHTML = '';
+      if (resultaten.length === 0) {
+        resultatenDiv.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Niets gevonden</p>';
+        return;
+      }
+      resultaten.forEach(lid => {
+        const btn = document.createElement('button');
+        btn.className = 'handmatig-result';
+        btn.innerHTML = lid.naam + ' <span class="lidnr">(' + lid.lidnummer + ')</span>';
+        btn.addEventListener('click', () => selecteerHandmatigLid(lid));
+        resultatenDiv.appendChild(btn);
+      });
+    } catch (err) {
+      resultatenDiv.innerHTML = '';
+      document.getElementById('handmatigMsg').textContent = err.message;
+      document.getElementById('handmatigMsg').className = 'msg-donker err';
+    }
+  }
+
+  function selecteerHandmatigLid(lid) {
+    handmatigGeselecteerd = lid;
+    document.getElementById('handmatigDetailNaam').textContent = lid.naam + ' (' + lid.lidnummer + ')';
+
+    const statusDiv = document.getElementById('handmatigDetailStatus');
+    const knop = document.getElementById('handmatigBevestigKnop');
+
+    if (lid.type === 'Abonnement') {
+      statusDiv.innerHTML = lid.geldig
+        ? '<span class="status-geldig">Geldig t/m ' + lid.vervalDatum + '</span>'
+        : '<span class="status-verlopen">Verlopen op ' + lid.vervalDatum + '</span>';
+      knop.textContent = 'Toegang bevestigen';
+    } else {
+      statusDiv.textContent = 'Saldo: ' + lid.saldo + ' ritten';
+      knop.textContent = '1 rit afboeken';
+    }
+
+    document.getElementById('handmatigMsg').className = 'msg-donker';
+    document.getElementById('handmatigDetail').classList.remove('hidden');
+  }
+
+  async function bevestigHandmatig() {
+    if (!handmatigGeselecteerd) return;
+    try {
+      const data = await roepApi({
+        action: 'handmatigAfboeken',
+        lidnummer: handmatigGeselecteerd.lidnummer,
+        scannerLidnummer: ingelogdLidnummer
+      });
+      sluitHandmatig();
+      showResult(data);
+    } catch (err) {
+      document.getElementById('handmatigMsg').textContent = err.message;
+      document.getElementById('handmatigMsg').className = 'msg-donker err';
+    }
   }
 </script>
 </body>
