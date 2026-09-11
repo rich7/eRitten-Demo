@@ -141,7 +141,7 @@
         document.getElementById('resSaldoLabel').textContent = 'abonnement t/m ' + json.data.vervalDatum;
       } else {
         document.getElementById('resSaldo').textContent = json.data.saldo;
-        document.getElementById('resSaldo').className = 'saldo-groot';
+        document.getElementById('resSaldo').className = 'saldo-groot ';
         document.getElementById('resSaldoLabel').textContent =
           'ritten over' + (json.data.vervalDatum ? ' (houdbaar t/m ' + json.data.vervalDatum + ')' : '');
       }
