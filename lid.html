@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mijn kaart/abonnement</title>
+<title>Mijn rittenkaart</title>
 <style>
   :root {
     --bg: #f4f5f7;
@@ -60,8 +60,8 @@
   #resultaat { display: none; text-align: center; margin-top: 20px; }
   #resultaat .naam { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
   .qr-code { width: 200px; height: 200px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: white; }
-  .saldo-groot { font-size: 2.3rem; font-weight: 700; color: var(--primary); line-height: 1; }
-  .saldo-label { color: var(--muted); font-size: 1.4rem; margin-top: 4px; }
+  .saldo-groot { font-size: 2.6rem; font-weight: 700; color: var(--primary); line-height: 1; }
+  .saldo-label { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
   .status-verlopen { color: var(--danger); }
   .status-geldig { color: var(--primary); }
   .laatste-bezoek { margin-top: 18px; font-size: 0.9rem; color: var(--muted); }
@@ -76,8 +76,8 @@
 <body>
 
 <div class="wrap">
-  <h1>Mijn lidmaatschapskaart</h1>
-  <p class="subtitle">Bekijk Abonnement/tegoed en laatste bezoek</p>
+  <h1>Mijn rittenkaart</h1>
+  <p class="subtitle">Bekijk je tegoed en laatste bezoek</p>
 
   <div class="card">
     <div id="zoekForm">
@@ -95,7 +95,7 @@
       <div class="saldo-groot" id="resSaldo"></div>
       <div class="saldo-label" id="resSaldoLabel">ritten over</div>
       <div class="laatste-bezoek" id="resLaatsteBezoek"></div>
-      <button class="terug-btn" onclick="terug()">Terug</button>
+      <button class="terug-btn" onclick="terug()">Andere gegevens invoeren</button>
     </div>
   </div>
 </div>
@@ -131,7 +131,7 @@
       }
       if (!json.success) throw new Error(json.error);
 
-      document.getElementById('resNaam').textContent = json.data.naam;
+      document.getElementById('resNaam').textContent = 'Hoi ' + json.data.naam;
       document.getElementById('resQr').src =
         'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(json.data.token);
 
@@ -141,7 +141,7 @@
         document.getElementById('resSaldoLabel').textContent = 'abonnement t/m ' + json.data.vervalDatum;
       } else {
         document.getElementById('resSaldo').textContent = json.data.saldo;
-        document.getElementById('resSaldo').className = 'saldo-groot ';
+        document.getElementById('resSaldo').className = 'saldo-groot';
         document.getElementById('resSaldoLabel').textContent =
           'ritten over' + (json.data.vervalDatum ? ' (houdbaar t/m ' + json.data.vervalDatum + ')' : '');
       }
