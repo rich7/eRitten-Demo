@@ -145,6 +145,15 @@
     cursor: pointer;
   }
   .checkbox-label input { width: auto; margin: 0; }
+  .ingang-keuze { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+  .ingang-keuze label {
+    display: flex; align-items: center; gap: 8px; font-size: 0.9rem;
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; cursor: pointer; margin: 0;
+  }
+  .ingang-keuze input[type="radio"] { width: auto; margin: 0; }
+  .ingang-handmatig-label input[type="date"] {
+    width: auto; padding: 6px 8px; font-size: 0.85rem; margin: 0;
+  }
 
   /* Modal (lid-detail) */
   .modal-overlay {
@@ -245,6 +254,18 @@
           <option value="halfjaar">Half jaar</option>
           <option value="jaar">1 jaar</option>
         </select>
+
+        <label>Ingangsdatum</label>
+        <div class="ingang-keuze">
+          <label><input type="radio" name="newIngang" value="vandaag" onchange="wisselIngang()"> <span>Vandaag</span></label>
+          <label><input type="radio" name="newIngang" value="jan" onchange="wisselIngang()"> <span id="ingangJanLabel">1 januari</span></label>
+          <label><input type="radio" name="newIngang" value="jun" onchange="wisselIngang()"> <span id="ingangJunLabel">1 juni</span></label>
+          <label class="ingang-handmatig-label">
+            <input type="radio" name="newIngang" value="handmatig" onchange="wisselIngang()">
+            <span>Handmatig:</span>
+            <input type="date" id="newIngangHandmatig" disabled>
+          </label>
+        </div>
       </div>
 
       <label class="checkbox-label">
@@ -262,7 +283,7 @@
       <h2>Leden overzicht</h2>
       <label>Zoek op naam of lidnummer</label>
       <input id="zoekLedenOverzicht" placeholder="Typ om te filteren..." oninput="filterLedenOverzicht()">
-      <button class="secondary" onclick="loadMembers()">Vernieuwen</button>
+      <button class="secondary" onclick="loadMembers()">Refresh</button>
       <div id="membersMsg" class="msg"></div>
       <table id="membersTable">
         <thead>
@@ -339,6 +360,12 @@
       <input id="scanCooldown" type="number" min="0" value="5">
       <button onclick="saveScanCooldown()">Opslaan</button>
       <div id="scanCooldownMsg" class="msg"></div>
+
+      <h3>Houdbaarheid rittenkaart</h3>
+      <label>Aantal maanden dat een rittenkaart geldig blijft na aanmaken of opwaarderen</label>
+      <input id="rittenHoudbaarheid" type="number" min="1" value="13">
+      <button onclick="saveRittenHoudbaarheid()">Opslaan</button>
+      <div id="rittenHoudbaarheidMsg" class="msg"></div>
 
       <p style="font-size:0.8rem;color:var(--muted);margin-top:20px;padding-top:14px;border-top:1px solid var(--border);">
         Hoofdbeheerder-wachtwoord wijzigen kan alleen via Scripteigenschappen in de Apps Script-editor
@@ -489,6 +516,7 @@
     document.getElementById('tabBtnBeheerders').classList.toggle('hidden', !isHoofdbeheerder);
     document.getElementById('berichtDuur').value = data.berichtDuurSeconden;
     document.getElementById('scanCooldown').value = data.scanCooldownMinuten;
+    document.getElementById('rittenHoudbaarheid').value = data.rittenHoudbaarheidMaanden;
     loadMembers();
   }
 
@@ -501,9 +529,60 @@
     if (naam === 'beheerders') loadBeheerders();
   }
 
+  let ingangsdatumOpties = null;
+
+  function isoDatum(d) {
+    const jr = d.getFullYear();
+    const mnd = String(d.getMonth() + 1).padStart(2, '0');
+    const dag = String(d.getDate()).padStart(2, '0');
+    return jr + '-' + mnd + '-' + dag;
+  }
+
+  function berekenIngangsdatumOpties() {
+    const vandaag = new Date();
+    vandaag.setHours(0, 0, 0, 0);
+
+    function naastgelegen(maandIndex) {
+      const jr = vandaag.getFullYear();
+      const ditJaar = new Date(jr, maandIndex, 1);
+      const volgendJaar = new Date(jr + 1, maandIndex, 1);
+      return Math.abs(vandaag - ditJaar) <= Math.abs(vandaag - volgendJaar) ? ditJaar : volgendJaar;
+    }
+
+    const jan = naastgelegen(0);
+    const jun = naastgelegen(5);
+    const defaultKeuze = Math.abs(vandaag - jan) <= Math.abs(vandaag - jun) ? 'jan' : 'jun';
+
+    return { vandaag, jan, jun, defaultKeuze };
+  }
+
+  function vulIngangsdatumOpties() {
+    ingangsdatumOpties = berekenIngangsdatumOpties();
+    const opts = { day: 'numeric', month: 'long', year: 'numeric' };
+    document.getElementById('ingangJanLabel').textContent = ingangsdatumOpties.jan.toLocaleDateString('nl-NL', opts);
+    document.getElementById('ingangJunLabel').textContent = ingangsdatumOpties.jun.toLocaleDateString('nl-NL', opts);
+    document.querySelector('input[name="newIngang"][value="' + ingangsdatumOpties.defaultKeuze + '"]').checked = true;
+    document.getElementById('newIngangHandmatig').value = isoDatum(ingangsdatumOpties.vandaag);
+    wisselIngang();
+  }
+
+  function wisselIngang() {
+    const keuze = document.querySelector('input[name="newIngang"]:checked').value;
+    document.getElementById('newIngangHandmatig').disabled = keuze !== 'handmatig';
+  }
+
+  function bepaalGekozenIngangsdatum() {
+    const keuze = document.querySelector('input[name="newIngang"]:checked').value;
+    if (keuze === 'vandaag') return isoDatum(ingangsdatumOpties.vandaag);
+    if (keuze === 'jan') return isoDatum(ingangsdatumOpties.jan);
+    if (keuze === 'jun') return isoDatum(ingangsdatumOpties.jun);
+    return document.getElementById('newIngangHandmatig').value;
+  }
+
   function wisselNieuwType() {
     const type = document.querySelector('input[name="newType"]:checked').value;
     document.getElementById('newAbonnementVeld').style.display = type === 'Abonnement' ? 'block' : 'none';
+    if (type === 'Abonnement' && !ingangsdatumOpties) vulIngangsdatumOpties();
   }
 
   async function saveBerichtDuur() {
@@ -526,6 +605,16 @@
     }
   }
 
+  async function saveRittenHoudbaarheid() {
+    const maanden = document.getElementById('rittenHoudbaarheid').value;
+    try {
+      await callApi('setRittenHoudbaarheid', { maanden });
+      showMsg('rittenHoudbaarheidMsg', 'Houdbaarheid opgeslagen: ' + maanden + ' maanden.', true);
+    } catch (err) {
+      showMsg('rittenHoudbaarheidMsg', err.message, false);
+    }
+  }
+
   async function addMember() {
     const lidnummer = document.getElementById('newLidnummer').value.trim();
     const naam = document.getElementById('newNaam').value.trim();
@@ -533,9 +622,11 @@
     const type = document.querySelector('input[name="newType"]:checked').value;
     const duur = document.getElementById('newDuur').value;
     const stuurMail = document.getElementById('newStuurMail').checked;
+    const ingangsdatum = type === 'Abonnement' ? bepaalGekozenIngangsdatum() : undefined;
     try {
-      await callApi('addMember', { lidnummer, naam, email, type, duur, stuurMail });
-      showMsg('addMsg', stuurMail ? 'Lid toegevoegd, QR-code is gemaild.' : 'Lid toegevoegd (geen mail verstuurd).', true);
+      const data = await callApi('addMember', { lidnummer, naam, email, type, duur, stuurMail, ingangsdatum });
+      const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ', QR-code is gemaild.' : ', mail NIET verstuurd (nog binnen 5 min. sinds vorige mail aan dit lid).');
+      showMsg('addMsg', 'Lid toegevoegd' + mailTekst, true);
       document.getElementById('newLidnummer').value = '';
       document.getElementById('newNaam').value = '';
       document.getElementById('newEmail').value = '';
@@ -573,7 +664,9 @@
     tbody.innerHTML = '';
     leden.forEach(lid => {
       const isAbonnement = lid.type === 'Abonnement';
-      const saldoOfVerval = isAbonnement ? (lid.vervalDatum || '-') : lid.saldo;
+      const saldoOfVerval = isAbonnement
+        ? (lid.vervalDatum || '-')
+        : lid.saldo + (lid.vervalDatum ? ' (t/m ' + lid.vervalDatum + ')' : '');
 
       const tr = document.createElement('tr');
       if (lid.verlopen) tr.classList.add('rij-verlopen');
@@ -619,7 +712,7 @@
       document.getElementById('detailInfo').textContent =
         gevondenLid.type === 'Abonnement'
           ? 'Abonnement, geldig t/m ' + (gevondenLid.vervalDatum || '-')
-          : 'Rittenkaart, saldo: ' + gevondenLid.saldo + ' ritten';
+          : 'Rittenkaart, saldo: ' + gevondenLid.saldo + ' ritten' + (gevondenLid.vervalDatum ? ' (houdbaar t/m ' + gevondenLid.vervalDatum + ')' : '');
       document.getElementById('detailRittenVeld').style.display = gevondenLid.type === 'Abonnement' ? 'none' : 'block';
       document.getElementById('detailAbonnementVeld').style.display = gevondenLid.type === 'Abonnement' ? 'block' : 'none';
       document.getElementById('detailTopUpMail').checked = false;
@@ -642,7 +735,8 @@
     const stuurMail = document.getElementById('detailTopUpMail').checked;
     try {
       const data = await callApi('topUpRitten', { lidnummer: gevondenLid.lidnummer, aantal, stuurMail });
-      showMsg('detailMsg', 'Nieuw saldo: ' + data.nieuwSaldo + ' ritten' + (stuurMail ? ' (mail verstuurd).' : '.'), true);
+      const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ' (mail verstuurd).' : ' (mail NIET verstuurd, nog binnen 5 min. sinds vorige mail).');
+      showMsg('detailMsg', 'Nieuw saldo: ' + data.nieuwSaldo + ' ritten, houdbaar t/m ' + data.nieuweVervalDatum + mailTekst, true);
       loadMembers();
       openLidDetail(gevondenLid.lidnummer);
     } catch (err) {
@@ -656,7 +750,8 @@
     const stuurMail = document.getElementById('detailVerlengMail').checked;
     try {
       const data = await callApi('verlengAbonnement', { lidnummer: gevondenLid.lidnummer, duur, stuurMail });
-      showMsg('detailMsg', 'Geldig t/m ' + data.nieuweVervalDatum + (stuurMail ? ' (mail verstuurd).' : '.'), true);
+      const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ' (mail verstuurd).' : ' (mail NIET verstuurd, nog binnen 5 min. sinds vorige mail).');
+      showMsg('detailMsg', 'Geldig t/m ' + data.nieuweVervalDatum + mailTekst, true);
       loadMembers();
       openLidDetail(gevondenLid.lidnummer);
     } catch (err) {
@@ -668,7 +763,9 @@
     if (!gevondenLid) return;
     try {
       const data = await callApi('stuurWelkomstMailOpnieuw', { lidnummer: gevondenLid.lidnummer });
-      showMsg('detailMsg', 'E-mail (opnieuw) verstuurd naar ' + data.email + '.', true);
+      showMsg('detailMsg', data.mailVerstuurd
+        ? 'E-mail (opnieuw) verstuurd naar ' + data.email + '.'
+        : 'Mail NIET verstuurd - er is nog geen 5 minuten geleden een mail naar dit lid gestuurd.', data.mailVerstuurd);
     } catch (err) {
       showMsg('detailMsg', err.message, false);
     }
