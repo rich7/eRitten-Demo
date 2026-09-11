@@ -137,7 +137,7 @@
 
       if (json.data.type === 'Abonnement') {
         document.getElementById('resSaldo').textContent = json.data.geldig ? 'Geldig' : 'Verlopen';
-        document.getElementById('resSaldo').className = 'saldo-groot' + (json.data.geldig ? 'status-geldig' : 'status-verlopen');
+        document.getElementById('resSaldo').className = 'saldo-groot ' + (json.data.geldig ? 'status-geldig' : 'status-verlopen');
         document.getElementById('resSaldoLabel').textContent = 'abonnement t/m ' + json.data.vervalDatum;
       } else {
         document.getElementById('resSaldo').textContent = json.data.saldo;
