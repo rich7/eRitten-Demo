@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="nl">
-<!--  v7  -->
-  <head>
+<!-- V7 -->
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mijn rittenkaart</title>
+<title>Lidmaatschapskaart</title>
 <style>
   :root {
     --bg: #f4f5f7;
@@ -77,8 +77,8 @@
 <body>
 
 <div class="wrap">
-  <h1>Mijn rittenkaart</h1>
-  <p class="subtitle">Bekijk je tegoed en laatste bezoek</p>
+  <h1>Lidmaatschapskaart</h1>
+  <p class="subtitle">Bekijk je tegoed / abonnement</p>
 
   <div class="card">
     <div id="zoekForm">
@@ -96,7 +96,7 @@
       <div class="saldo-groot" id="resSaldo"></div>
       <div class="saldo-label" id="resSaldoLabel">ritten over</div>
       <div class="laatste-bezoek" id="resLaatsteBezoek"></div>
-      <button class="terug-btn" onclick="terug()">Andere gegevens invoeren</button>
+      <button class="terug-btn" onclick="terug()">Terug</button>
     </div>
   </div>
 </div>
@@ -132,19 +132,19 @@
       }
       if (!json.success) throw new Error(json.error);
 
-      document.getElementById('resNaam').textContent = 'Hoi ' + json.data.naam;
+      document.getElementById('resNaam').textContent = json.data.naam;
       document.getElementById('resQr').src =
         'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(json.data.token);
 
       if (json.data.type === 'Abonnement') {
         document.getElementById('resSaldo').textContent = json.data.geldig ? 'Geldig' : 'Verlopen';
         document.getElementById('resSaldo').className = 'saldo-groot ' + (json.data.geldig ? 'status-geldig' : 'status-verlopen');
-        document.getElementById('resSaldoLabel').textContent = 'abonnement t/m ' + json.data.vervalDatum;
+        document.getElementById('resSaldoLabel').innerHTML = 'abonnement t/m <strong>' + json.data.vervalDatum + '</strong>';
       } else {
         document.getElementById('resSaldo').textContent = json.data.saldo;
         document.getElementById('resSaldo').className = 'saldo-groot';
-        document.getElementById('resSaldoLabel').textContent =
-          'ritten over' + (json.data.vervalDatum ? ' (houdbaar t/m ' + json.data.vervalDatum + ')' : '');
+        document.getElementById('resSaldoLabel').innerHTML =
+          'ritten over' + (json.data.vervalDatum ? ' (geldig t/m <strong>' + json.data.vervalDatum + '</strong>)' : '');
       }
 
       document.getElementById('resLaatsteBezoek').textContent = 'Laatste bezoek: ' + json.data.laatsteBezoek;
