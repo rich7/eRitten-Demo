@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="nl">
-<!-- V7 beheerder moet lid zijn -->
-  <head>
+<!--- V7.2  import -->
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rittenkaart - Admin</title>
 <style>
-  :root {
+  :root {a
     --bg: #f4f5f7;
     --card: #ffffff;
     --primary: #2c6e49;
@@ -65,6 +65,7 @@
   }
   button.danger { background: var(--danger); }
   button.danger:hover { background: #8f1e17; }
+  button.knop-grijs, button.knop-grijs:hover { background: #9ca3af; cursor: not-allowed; }
   button.link {
     background: none;
     border: none;
@@ -86,6 +87,8 @@
   .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
   .badge-ritten { background: #e3edff; color: #2952a3; }
   .badge-abonnement { background: #f1e6ff; color: #6b21a8; }
+  .badge-onvolledig { background: #fff3cd; color: #8a6400; }
+  .rij-onvolledig { background: #fffbea; }
   .naam-link {
     background: none; border: none; padding: 0; margin: 0;
     color: var(--primary); font-weight: 600; text-decoration: underline;
@@ -185,13 +188,14 @@
 
   .login-wissel { text-align: center; margin-top: 16px; font-size: 0.85rem; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 
 <div id="loginScreen" class="card">
-  <h1>Rittenkaart admin</h1>
+  <h1>Rit/Abonnement beheer</h1>
 
-  <div id="loginHoofdbeheerder">
+  <div id="loginHoofdbeheerder" class="hidden">
     <p class="subtitle">Inloggen als hoofdbeheerder</p>
     <form onsubmit="loginHoofdbeheerder(event); return false;">
       <input type="text" name="username" value="rittenkaart-hoofdbeheerder" autocomplete="username" style="display:none">
@@ -205,11 +209,11 @@
     </p>
   </div>
 
-  <div id="loginBeheerder" class="hidden">
+  <div id="loginBeheerder">
     <p class="subtitle">Inloggen als beheerder</p>
     <form onsubmit="loginBeheerder(event); return false;">
       <label>Lidnummer</label>
-      <input type="text" id="beheerderLidnummer" autocomplete="username" placeholder="Jouw lidnummer">
+      <input type="text" id="beheerderLidnummer" autocomplete="username" placeholder="">
       <label>Wachtwoord</label>
       <input type="password" id="beheerderWachtwoordVeld" autocomplete="current-password" placeholder="Wachtwoord">
       <button type="submit">Inloggen</button>
@@ -224,7 +228,7 @@
 </div>
 
 <div id="app" class="wrap hidden">
-  <h1 id="verenigingTitel">Rittenkaart admin</h1>
+  <h1 id="verenigingTitel">Rit/Abonnement beheer</h1>
   <p class="subtitle" id="ingelogdAlsTekst">Beheer leden, ritsaldo's en abonnementen</p>
 
   <div class="tabs">
@@ -241,7 +245,9 @@
       <label>Lidnummer</label>
       <input id="newLidnummer" placeholder="bv. 1042">
       <label>Naam</label>
-      <input id="newNaam" placeholder="Voor- en achternaam">
+      <input id="newNaam" placeholder="Voornaam (of volledige naam)">
+      <label>Achternaam (optioneel)</label>
+      <input id="newAchternaam" placeholder="">
       <label>E-mailadres</label>
       <input id="newEmail" type="email" placeholder="naam@voorbeeld.nl">
 
@@ -267,11 +273,11 @@
 
         <label>Ingangsdatum</label>
         <div class="ingang-keuze">
-          <label><input type="radio" name="newIngang" value="vandaag" onchange="wisselIngang()"> <span>Vandaag</span></label>
-          <label><input type="radio" name="newIngang" value="jan" onchange="wisselIngang()"> <span id="ingangJanLabel">1 januari</span></label>
-          <label><input type="radio" name="newIngang" value="jun" onchange="wisselIngang()"> <span id="ingangJunLabel">1 juni</span></label>
+          <label><input type="radio" name="newIngang" value="vandaag" onchange="wisselIngang('new')"> <span>Vandaag</span></label>
+          <label><input type="radio" name="newIngang" value="jan" onchange="wisselIngang('new')"> <span id="newJanLabel">1 januari</span></label>
+          <label><input type="radio" name="newIngang" value="jun" onchange="wisselIngang('new')"> <span id="newJunLabel">1 juni</span></label>
           <label class="ingang-handmatig-label">
-            <input type="radio" name="newIngang" value="handmatig" onchange="wisselIngang()">
+            <input type="radio" name="newIngang" value="handmatig" onchange="wisselIngang('new')">
             <span>Handmatig:</span>
             <input type="date" id="newIngangHandmatig" disabled>
           </label>
@@ -299,6 +305,7 @@
         <span class="sorteer-label">Sorteer op:</span>
         <button class="sorteer-btn" data-veld="naam" onclick="sorteerLeden('naam')">Naam</button>
         <button class="sorteer-btn" data-veld="type" onclick="sorteerLeden('type')">Type</button>
+        <button class="sorteer-btn" data-veld="saldoOfVervalRuw" onclick="sorteerLeden('saldoOfVervalRuw')">Saldo / Vervaldatum</button>
         <button class="sorteer-btn" data-veld="laatsteScan" onclick="sorteerLeden('laatsteScan')">Laatste scan</button>
       </div>
 
@@ -383,6 +390,27 @@
       <button onclick="saveRittenHoudbaarheid()">Opslaan</button>
       <div id="rittenHoudbaarheidMsg" class="msg"></div>
 
+      <h3>Leden importeren</h3>
+      <p class="subtitle" style="margin-bottom:10px;">
+        CSV-bestand met kolommen <strong>Lidnummer</strong>, <strong>Naam</strong>, <strong>Email</strong>
+        (verplicht) en optioneel <strong>Achternaam</strong>. Andere kolommen worden genegeerd.
+        Lidnummers die al bestaan, worden overgeslagen. Ritten/Abonnement stel je na import per lid in.
+      </p>
+      <input type="file" id="importBestand" accept=".csv" onchange="leesImportBestand(event)">
+
+      <div id="importPreview" class="hidden" style="margin-top:14px;">
+        <p id="importSamenvatting" style="font-size:0.88rem;"></p>
+        <div id="importFouten" style="font-size:0.82rem;color:var(--danger);max-height:120px;overflow-y:auto;"></div>
+        <button id="importBevestigKnop" onclick="bevestigImport()">Importeren</button>
+      </div>
+      <div id="importMsg" class="msg"></div>
+
+      <p style="font-size:0.8rem;color:var(--muted);margin-top:10px;">
+        Na het importeren: bekijk ontbrekende gegevens in het ledenoverzicht, sorteer op
+        "Saldo / Vervaldatum" om leden zonder Ritten/Abonnement snel te vinden (die staan
+        met een gele "Onvolledig"-badge bovenaan).
+      </p>
+
       <p style="font-size:0.8rem;color:var(--muted);margin-top:20px;padding-top:14px;border-top:1px solid var(--border);">
         Hoofdbeheerder-wachtwoord wijzigen kan alleen via Scripteigenschappen in de Apps Script-editor
         (zie README). Een beheerder-wachtwoord reset je door de beheerder te verwijderen en opnieuw
@@ -398,6 +426,48 @@
     <h2 id="detailNaam"></h2>
     <div class="detail-info" id="detailInfo"></div>
 
+    <div id="detailVoltooienVeld" class="subveld">
+      <p class="subtitle" style="margin:6px 0 10px;">Dit lid heeft nog geen Ritten/Abonnement - kies er een om de registratie te voltooien.</p>
+      <label>Type</label>
+      <div class="type-keuze">
+        <label>
+          <input type="radio" name="detailVoltooienType" value="Ritten" checked onchange="wisselDetailVoltooienType()">
+          Rittenkaart (10 ritten)
+        </label>
+        <label>
+          <input type="radio" name="detailVoltooienType" value="Abonnement" onchange="wisselDetailVoltooienType()">
+          Abonnement
+        </label>
+      </div>
+
+      <div id="detailVoltooienAbonnementVeld" class="subveld">
+        <label>Looptijd</label>
+        <select id="detailVoltooienDuur">
+          <option value="maand">1 maand</option>
+          <option value="halfjaar">Half jaar</option>
+          <option value="jaar">1 jaar</option>
+        </select>
+
+        <label>Ingangsdatum</label>
+        <div class="ingang-keuze">
+          <label><input type="radio" name="detailVoltooienIngang" value="vandaag" onchange="wisselIngang('detailVoltooien')"> <span>Vandaag</span></label>
+          <label><input type="radio" name="detailVoltooienIngang" value="jan" onchange="wisselIngang('detailVoltooien')"> <span id="detailVoltooienJanLabel">1 januari</span></label>
+          <label><input type="radio" name="detailVoltooienIngang" value="jun" onchange="wisselIngang('detailVoltooien')"> <span id="detailVoltooienJunLabel">1 juni</span></label>
+          <label class="ingang-handmatig-label">
+            <input type="radio" name="detailVoltooienIngang" value="handmatig" onchange="wisselIngang('detailVoltooien')">
+            <span>Handmatig:</span>
+            <input type="date" id="detailVoltooienIngangHandmatig" disabled>
+          </label>
+        </div>
+      </div>
+
+      <label class="checkbox-label">
+        <input type="checkbox" id="detailVoltooienMail" checked>
+        QR-code mailen naar het lid
+      </label>
+      <button id="detailVoltooienKnop" onclick="voltooiLidActie()">Lid voltooien</button>
+    </div>
+
     <div id="detailRittenVeld" class="subveld">
       <label>Aantal ritten erbij</label>
       <input id="detailTopUpAantal" type="number" min="1" value="10">
@@ -405,7 +475,7 @@
         <input type="checkbox" id="detailTopUpMail">
         Bevestigingsmail sturen
       </label>
-      <button onclick="detailTopUpRitten()">Ritten opwaarderen</button>
+      <button id="detailTopUpKnop" onclick="detailTopUpRitten()">Ritten opwaarderen</button>
     </div>
 
     <div id="detailAbonnementVeld" class="subveld">
@@ -419,7 +489,7 @@
         <input type="checkbox" id="detailVerlengMail">
         Bevestigingsmail sturen
       </label>
-      <button onclick="detailVerlengAbonnement()">Abonnement verlengen</button>
+      <button id="detailVerlengKnop" onclick="detailVerlengAbonnement()">Abonnement verlengen</button>
     </div>
 
     <div id="detailMsg" class="msg"></div>
@@ -526,7 +596,7 @@
     verenigingNaamGlobaal = data.verenigingNaam;
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
-    document.getElementById('verenigingTitel').textContent = 'Rittenkaart admin - ' + data.verenigingNaam;
+    document.getElementById('verenigingTitel').textContent = 'Rit/Abonnement beheer - ' + data.verenigingNaam;
     document.getElementById('ingelogdAlsTekst').textContent =
       isHoofdbeheerder ? 'Ingelogd als hoofdbeheerder' : 'Ingelogd als beheerder' + (data.naam ? ' (' + data.naam + ')' : '');
     document.getElementById('tabBtnBeheerders').classList.toggle('hidden', !isHoofdbeheerder);
@@ -572,33 +642,33 @@
     return { vandaag, jan, jun, defaultKeuze };
   }
 
-  function vulIngangsdatumOpties() {
-    ingangsdatumOpties = berekenIngangsdatumOpties();
+  function vulIngangsdatumOptiesVoor(prefix) {
+    if (!ingangsdatumOpties) ingangsdatumOpties = berekenIngangsdatumOpties();
     const opts = { day: 'numeric', month: 'long', year: 'numeric' };
-    document.getElementById('ingangJanLabel').textContent = ingangsdatumOpties.jan.toLocaleDateString('nl-NL', opts);
-    document.getElementById('ingangJunLabel').textContent = ingangsdatumOpties.jun.toLocaleDateString('nl-NL', opts);
-    document.querySelector('input[name="newIngang"][value="' + ingangsdatumOpties.defaultKeuze + '"]').checked = true;
-    document.getElementById('newIngangHandmatig').value = isoDatum(ingangsdatumOpties.vandaag);
-    wisselIngang();
+    document.getElementById(prefix + 'JanLabel').textContent = ingangsdatumOpties.jan.toLocaleDateString('nl-NL', opts);
+    document.getElementById(prefix + 'JunLabel').textContent = ingangsdatumOpties.jun.toLocaleDateString('nl-NL', opts);
+    document.querySelector('input[name="' + prefix + 'Ingang"][value="' + ingangsdatumOpties.defaultKeuze + '"]').checked = true;
+    document.getElementById(prefix + 'IngangHandmatig').value = isoDatum(ingangsdatumOpties.vandaag);
+    wisselIngang(prefix);
   }
 
-  function wisselIngang() {
-    const keuze = document.querySelector('input[name="newIngang"]:checked').value;
-    document.getElementById('newIngangHandmatig').disabled = keuze !== 'handmatig';
+  function wisselIngang(prefix) {
+    const keuze = document.querySelector('input[name="' + prefix + 'Ingang"]:checked').value;
+    document.getElementById(prefix + 'IngangHandmatig').disabled = keuze !== 'handmatig';
   }
 
-  function bepaalGekozenIngangsdatum() {
-    const keuze = document.querySelector('input[name="newIngang"]:checked').value;
+  function bepaalGekozenIngangsdatum(prefix) {
+    const keuze = document.querySelector('input[name="' + prefix + 'Ingang"]:checked').value;
     if (keuze === 'vandaag') return isoDatum(ingangsdatumOpties.vandaag);
     if (keuze === 'jan') return isoDatum(ingangsdatumOpties.jan);
     if (keuze === 'jun') return isoDatum(ingangsdatumOpties.jun);
-    return document.getElementById('newIngangHandmatig').value;
+    return document.getElementById(prefix + 'IngangHandmatig').value;
   }
 
   function wisselNieuwType() {
     const type = document.querySelector('input[name="newType"]:checked').value;
     document.getElementById('newAbonnementVeld').style.display = type === 'Abonnement' ? 'block' : 'none';
-    if (type === 'Abonnement' && !ingangsdatumOpties) vulIngangsdatumOpties();
+    if (type === 'Abonnement') vulIngangsdatumOptiesVoor('new');
   }
 
   async function saveBerichtDuur() {
@@ -631,20 +701,106 @@
     }
   }
 
+  // ---- Leden importeren ----
+  let importTeVerwerken = [];
+
+  function leesImportBestand(event) {
+    const bestand = event.target.files[0];
+    if (!bestand) return;
+
+    document.getElementById('importMsg').className = 'msg';
+    Papa.parse(bestand, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function (resultaat) {
+        verwerkImportData(resultaat.data);
+      },
+      error: function (err) {
+        showMsg('importMsg', 'Kon het bestand niet lezen: ' + err.message, false);
+      }
+    });
+  }
+
+  function verwerkImportData(ruweRijen) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const gezienLidnummers = {};
+    const teImporteren = [];
+    const fouten = [];
+
+    ruweRijen.forEach(function (ruw, i) {
+      const rijnr = i + 2; // rij 1 is de koptekst
+      const genormaliseerd = {};
+      Object.keys(ruw).forEach(k => { genormaliseerd[k.trim().toLowerCase()] = String(ruw[k] || '').trim(); });
+
+      const lidnummer = genormaliseerd['lidnummer'] || '';
+      const naam = genormaliseerd['naam'] || '';
+      const achternaam = genormaliseerd['achternaam'] || '';
+      const email = genormaliseerd['email'] || '';
+
+      if (!lidnummer || !naam || !email) {
+        fouten.push('Rij ' + rijnr + ': lidnummer, naam en/of e-mail ontbreekt - overgeslagen');
+        return;
+      }
+      if (!emailRegex.test(email)) {
+        fouten.push('Rij ' + rijnr + ': ongeldig e-mailadres (' + email + ') - overgeslagen');
+        return;
+      }
+      if (gezienLidnummers[lidnummer]) {
+        fouten.push('Rij ' + rijnr + ': lidnummer ' + lidnummer + ' komt dubbel voor in dit bestand - overgeslagen');
+        return;
+      }
+      gezienLidnummers[lidnummer] = true;
+
+      const bestaatAl = ledenCache.some(lid => String(lid.lidnummer) === lidnummer);
+      if (bestaatAl) {
+        fouten.push('Rij ' + rijnr + ': lidnummer ' + lidnummer + ' bestaat al - overgeslagen');
+        return;
+      }
+
+      teImporteren.push({ lidnummer, naam, achternaam, email });
+    });
+
+    importTeVerwerken = teImporteren;
+
+    document.getElementById('importPreview').classList.remove('hidden');
+    document.getElementById('importSamenvatting').textContent =
+      teImporteren.length + ' van de ' + ruweRijen.length + ' rijen worden geïmporteerd' +
+      (fouten.length ? ', ' + fouten.length + ' overgeslagen (zie hieronder).' : '.');
+    document.getElementById('importFouten').innerHTML = fouten.map(f => '<div>' + f + '</div>').join('');
+    document.getElementById('importBevestigKnop').disabled = teImporteren.length === 0;
+    document.getElementById('importBevestigKnop').classList.toggle('knop-grijs', teImporteren.length === 0);
+  }
+
+  async function bevestigImport() {
+    if (importTeVerwerken.length === 0) return;
+    try {
+      const data = await callApi('importeerLeden', { rijen: importTeVerwerken });
+      showMsg('importMsg', data.toegevoegd + ' leden geïmporteerd' + (data.overgeslagen ? ', ' + data.overgeslagen + ' overgeslagen' : '') + '.', true);
+      importTeVerwerken = [];
+      document.getElementById('importPreview').classList.add('hidden');
+      document.getElementById('importBestand').value = '';
+      loadMembers();
+    } catch (err) {
+      showMsg('importMsg', err.message, false);
+    }
+  }
+
   async function addMember() {
     const lidnummer = document.getElementById('newLidnummer').value.trim();
     const naam = document.getElementById('newNaam').value.trim();
+    const achternaam = document.getElementById('newAchternaam').value.trim();
     const email = document.getElementById('newEmail').value.trim();
     const type = document.querySelector('input[name="newType"]:checked').value;
     const duur = document.getElementById('newDuur').value;
     const stuurMail = document.getElementById('newStuurMail').checked;
-    const ingangsdatum = type === 'Abonnement' ? bepaalGekozenIngangsdatum() : undefined;
+    const ingangsdatum = type === 'Abonnement' ? bepaalGekozenIngangsdatum('new') : undefined;
     try {
-      const data = await callApi('addMember', { lidnummer, naam, email, type, duur, stuurMail, ingangsdatum });
+      const data = await callApi('addMember', { lidnummer, naam, achternaam, email, type, duur, stuurMail, ingangsdatum });
       const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ', QR-code is gemaild.' : ', mail NIET verstuurd (nog binnen 5 min. sinds vorige mail aan dit lid).');
       showMsg('addMsg', 'Lid toegevoegd' + mailTekst, true);
       document.getElementById('newLidnummer').value = '';
       document.getElementById('newNaam').value = '';
+      document.getElementById('newAchternaam').value = '';
       document.getElementById('newEmail').value = '';
       loadMembers();
     } catch (err) {
@@ -687,7 +843,9 @@
     const zoek = document.getElementById('zoekLedenOverzicht').value.trim().toLowerCase();
     let lijst = zoek
       ? ledenCache.filter(lid =>
-          String(lid.naam).toLowerCase().includes(zoek) || String(lid.lidnummer).toLowerCase().includes(zoek)
+          String(lid.naam).toLowerCase().includes(zoek) ||
+          String(lid.achternaam || '').toLowerCase().includes(zoek) ||
+          String(lid.lidnummer).toLowerCase().includes(zoek)
         )
       : ledenCache.slice();
 
@@ -698,6 +856,8 @@
         let resultaat;
         if (veld === 'laatsteScan') {
           resultaat = (a.laatsteScanTijd || 0) - (b.laatsteScanTijd || 0);
+        } else if (veld === 'saldoOfVervalRuw') {
+          resultaat = (a.saldoOfVervalRuw || 0) - (b.saldoOfVervalRuw || 0);
         } else {
           resultaat = String(a[veld] || '').localeCompare(String(b[veld] || ''), 'nl');
         }
@@ -713,12 +873,14 @@
     tbody.innerHTML = '';
     leden.forEach(lid => {
       const isAbonnement = lid.type === 'Abonnement';
-      const saldoOfVerval = isAbonnement
-        ? (lid.vervalDatum || '-')
-        : lid.saldo + (lid.vervalDatum ? ' (t/m ' + lid.vervalDatum + ')' : '');
+      const isOnvolledig = !lid.type;
+      const saldoOfVerval = isOnvolledig
+        ? '-'
+        : (isAbonnement ? (lid.vervalDatum || '-') : lid.saldo + (lid.vervalDatum ? ' (t/m ' + lid.vervalDatum + ')' : ''));
 
       const tr = document.createElement('tr');
       if (lid.verlopen) tr.classList.add('rij-verlopen');
+      if (isOnvolledig) tr.classList.add('rij-onvolledig');
 
       const tdLidnr = document.createElement('td');
       tdLidnr.textContent = lid.lidnummer;
@@ -726,18 +888,23 @@
       const tdNaam = document.createElement('td');
       const naamBtn = document.createElement('button');
       naamBtn.className = 'naam-link';
-      naamBtn.textContent = lid.naam;
+      naamBtn.textContent = lid.naam + (lid.achternaam ? ' ' + lid.achternaam : '');
       naamBtn.addEventListener('click', () => openLidDetail(lid.lidnummer));
       tdNaam.appendChild(naamBtn);
 
       const tdType = document.createElement('td');
       const badge = document.createElement('span');
-      badge.className = 'badge ' + (isAbonnement ? 'badge-abonnement' : 'badge-ritten');
-      badge.textContent = isAbonnement ? 'Abonnement' : 'Ritten';
+      if (isOnvolledig) {
+        badge.className = 'badge badge-onvolledig';
+        badge.textContent = 'Onvolledig';
+      } else {
+        badge.className = 'badge ' + (isAbonnement ? 'badge-abonnement' : 'badge-ritten');
+        badge.textContent = isAbonnement ? 'Abonnement' : 'Ritten';
+      }
       tdType.appendChild(badge);
 
       const tdSaldo = document.createElement('td');
-      if (!isAbonnement && Number(lid.saldo) <= 2) tdSaldo.classList.add('saldo-laag');
+      if (!isOnvolledig && !isAbonnement && Number(lid.saldo) <= 2) tdSaldo.classList.add('saldo-laag');
       tdSaldo.textContent = saldoOfVerval;
 
       const tdLaatste = document.createElement('td');
@@ -757,19 +924,76 @@
   async function openLidDetail(lidnummer) {
     try {
       gevondenLid = await callApi('getMemberInfo', { lidnummer });
-      document.getElementById('detailNaam').textContent = gevondenLid.naam;
-      document.getElementById('detailInfo').textContent =
-        gevondenLid.type === 'Abonnement'
-          ? 'Abonnement, geldig t/m ' + (gevondenLid.vervalDatum || '-')
-          : 'Rittenkaart, saldo: ' + gevondenLid.saldo + ' ritten' + (gevondenLid.vervalDatum ? ' (houdbaar t/m ' + gevondenLid.vervalDatum + ')' : '');
-      document.getElementById('detailRittenVeld').style.display = gevondenLid.type === 'Abonnement' ? 'none' : 'block';
-      document.getElementById('detailAbonnementVeld').style.display = gevondenLid.type === 'Abonnement' ? 'block' : 'none';
+      const naamVolledig = gevondenLid.naam + (gevondenLid.achternaam ? ' ' + gevondenLid.achternaam : '');
+      document.getElementById('detailNaam').textContent = naamVolledig;
+
+      const isOnvolledig = !gevondenLid.type;
+      const isAbonnement = gevondenLid.type === 'Abonnement';
+
+      document.getElementById('detailInfo').textContent = isOnvolledig
+        ? 'Nog geen Ritten/Abonnement gekozen'
+        : (isAbonnement
+            ? 'Abonnement, geldig t/m ' + (gevondenLid.vervalDatum || '-')
+            : 'Rittenkaart, saldo: ' + gevondenLid.saldo + ' ritten' + (gevondenLid.vervalDatum ? ' (houdbaar t/m ' + gevondenLid.vervalDatum + ')' : ''));
+
+      document.getElementById('detailVoltooienVeld').style.display = isOnvolledig ? 'block' : 'none';
+      document.getElementById('detailRittenVeld').style.display = !isOnvolledig && !isAbonnement ? 'block' : 'none';
+      document.getElementById('detailAbonnementVeld').style.display = !isOnvolledig && isAbonnement ? 'block' : 'none';
+
+      if (isOnvolledig) {
+        document.querySelector('input[name="detailVoltooienType"][value="Ritten"]').checked = true;
+        wisselDetailVoltooienType();
+      }
+
+      // Knoppen terugzetten naar hun normale (niet-grijze) staat
+      herstelKnop('detailTopUpKnop', 'Ritten opwaarderen');
+      herstelKnop('detailVerlengKnop', 'Abonnement verlengen');
+      herstelKnop('detailVoltooienKnop', 'Lid voltooien');
+
       document.getElementById('detailTopUpMail').checked = false;
       document.getElementById('detailVerlengMail').checked = false;
       wisMeldingen();
       document.getElementById('lidDetailOverlay').classList.remove('hidden');
     } catch (err) {
       showMsg('membersMsg', err.message, false);
+    }
+  }
+
+  function herstelKnop(id, tekst) {
+    const knop = document.getElementById(id);
+    knop.disabled = false;
+    knop.classList.remove('knop-grijs');
+    knop.textContent = tekst;
+  }
+
+  function zetKnopOpGebruikt(id, tekst) {
+    const knop = document.getElementById(id);
+    knop.disabled = true;
+    knop.classList.add('knop-grijs');
+    knop.textContent = tekst;
+  }
+
+  function wisselDetailVoltooienType() {
+    const type = document.querySelector('input[name="detailVoltooienType"]:checked').value;
+    document.getElementById('detailVoltooienAbonnementVeld').style.display = type === 'Abonnement' ? 'block' : 'none';
+    if (type === 'Abonnement') vulIngangsdatumOptiesVoor('detailVoltooien');
+  }
+
+  async function voltooiLidActie() {
+    if (!gevondenLid) return;
+    const type = document.querySelector('input[name="detailVoltooienType"]:checked').value;
+    const duur = document.getElementById('detailVoltooienDuur').value;
+    const stuurMail = document.getElementById('detailVoltooienMail').checked;
+    const ingangsdatum = type === 'Abonnement' ? bepaalGekozenIngangsdatum('detailVoltooien') : undefined;
+    try {
+      const data = await callApi('voltooiLid', { lidnummer: gevondenLid.lidnummer, type, duur, stuurMail, ingangsdatum });
+      const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ' Mail verstuurd.' : ' Mail NIET verstuurd (nog binnen 5 min. sinds vorige mail).');
+      showMsg('detailMsg', 'Lid voltooid als ' + type + '.' + mailTekst, true);
+      zetKnopOpGebruikt('detailVoltooienKnop', 'Voltooid');
+      gevondenLid.type = type;
+      loadMembers();
+    } catch (err) {
+      showMsg('detailMsg', err.message, false);
     }
   }
 
@@ -786,8 +1010,10 @@
       const data = await callApi('topUpRitten', { lidnummer: gevondenLid.lidnummer, aantal, stuurMail });
       const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ' (mail verstuurd).' : ' (mail NIET verstuurd, nog binnen 5 min. sinds vorige mail).');
       showMsg('detailMsg', 'Nieuw saldo: ' + data.nieuwSaldo + ' ritten, houdbaar t/m ' + data.nieuweVervalDatum + mailTekst, true);
+      zetKnopOpGebruikt('detailTopUpKnop', 'Opgewaardeerd');
+      document.getElementById('detailInfo').textContent =
+        'Rittenkaart, saldo: ' + data.nieuwSaldo + ' ritten (houdbaar t/m ' + data.nieuweVervalDatum + ')';
       loadMembers();
-      openLidDetail(gevondenLid.lidnummer);
     } catch (err) {
       showMsg('detailMsg', err.message, false);
     }
@@ -801,8 +1027,9 @@
       const data = await callApi('verlengAbonnement', { lidnummer: gevondenLid.lidnummer, duur, stuurMail });
       const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ' (mail verstuurd).' : ' (mail NIET verstuurd, nog binnen 5 min. sinds vorige mail).');
       showMsg('detailMsg', 'Geldig t/m ' + data.nieuweVervalDatum + mailTekst, true);
+      zetKnopOpGebruikt('detailVerlengKnop', 'Verlengd');
+      document.getElementById('detailInfo').textContent = 'Abonnement, geldig t/m ' + data.nieuweVervalDatum;
       loadMembers();
-      openLidDetail(gevondenLid.lidnummer);
     } catch (err) {
       showMsg('detailMsg', err.message, false);
     }
