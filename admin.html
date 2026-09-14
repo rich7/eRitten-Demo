@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="nl">
-<!--- V7.2  import -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rittenkaart - Admin</title>
 <style>
-  :root {a
+  :root {
     --bg: #f4f5f7;
     --card: #ffffff;
     --primary: #2c6e49;
@@ -349,7 +348,7 @@
     <div class="card">
       <h2>Beheerders</h2>
       <p class="subtitle" style="margin-bottom:14px;">
-        Alleen de hoofdbeheerder kan hier beheerders toevoegen of verwijderen. Een beheerder heeft verder
+        Alleen de Hoofdbeheerder kan één of meerdere beheerders aanmaken. Een beheerder heeft verder
         dezelfde rechten als de hoofdbeheerder, en moet - net als een scanner-gebruiker - altijd al lid zijn.
       </p>
       <label>Lidnummer (bestaand lid)</label>
@@ -392,9 +391,10 @@
 
       <h3>Leden importeren</h3>
       <p class="subtitle" style="margin-bottom:10px;">
-        CSV-bestand met kolommen <strong>Lidnummer</strong>, <strong>Naam</strong>, <strong>Email</strong>
-        (verplicht) en optioneel <strong>Achternaam</strong>. Andere kolommen worden genegeerd.
-        Lidnummers die al bestaan, worden overgeslagen. Ritten/Abonnement stel je na import per lid in.
+        CSV-bestand met kolommen Lidnummer, Naam, Email (verplicht) en optioneel Achternaam. Andere
+        kolommen worden genegeerd. Lidnummers die al bestaan, worden overgeslagen. Ritten/Abonnement
+        stel je na import per lid in. Na bestand gekozen is wordt proefrun en gecontroleerd. Als het
+        bestand voldoet aan de eisen, komt knop "importeren".
       </p>
       <input type="file" id="importBestand" accept=".csv" onchange="leesImportBestand(event)">
 
@@ -406,10 +406,35 @@
       <div id="importMsg" class="msg"></div>
 
       <p style="font-size:0.8rem;color:var(--muted);margin-top:10px;">
-        Na het importeren: bekijk ontbrekende gegevens in het ledenoverzicht, sorteer op
-        "Saldo / Vervaldatum" om leden zonder Ritten/Abonnement snel te vinden (die staan
-        met een gele "Onvolledig"-badge bovenaan).
+        Na het importeren: bekijk ontbrekende gegevens in het ledenoverzicht, sorteer op "Type"
+        om leden zonder Ritten/Abonnement snel te vinden (die staan met een gele "Onvolledig"-badge
+        bovenaan).
       </p>
+
+      <h3>Abonnementen bijwerken (update-import)</h3>
+      <p class="subtitle" style="margin-bottom:10px;">
+        CSV-bestand met kolommen Lidnummer en Vervaldatum (jjjj-mm-dd), bijvoorbeeld uit een externe
+        ledenadministratie. De datum uit het bestand wordt exact overgenomen (geen optellen/verlengen -
+        de externe administratie is leidend). Werkt alleen voor leden die al een Abonnement hebben;
+        onbekende lidnummers of leden zonder abonnement worden overgeslagen en gemeld.
+      </p>
+      <input type="file" id="updateBestand" accept=".csv" onchange="leesUpdateBestand(event)">
+
+      <div id="updatePreview" class="hidden" style="margin-top:14px;">
+        <p id="updateSamenvatting" style="font-size:0.88rem;"></p>
+        <div id="updateFouten" style="font-size:0.82rem;color:var(--danger);max-height:120px;overflow-y:auto;"></div>
+        <button id="updateBevestigKnop" onclick="bevestigUpdateImport()">Bijwerken</button>
+      </div>
+      <div id="updateMsg" class="msg"></div>
+
+      <h3>Onderhoud</h3>
+      <p class="subtitle" style="margin-bottom:10px;">
+        Loopt alle leden langs en genereert een Token voor wie er nog geen heeft (bv. na
+        handmatig plakken/toevoegen in de Sheet buiten de app om). Nodig om QR-codes en
+        mails te laten werken voor zulke leden.
+      </p>
+      <button onclick="vulTokensAan()">Vul ontbrekende tokens aan</button>
+      <div id="tokensAanvullenMsg" class="msg"></div>
 
       <p style="font-size:0.8rem;color:var(--muted);margin-top:20px;padding-top:14px;border-top:1px solid var(--border);">
         Hoofdbeheerder-wachtwoord wijzigen kan alleen via Scripteigenschappen in de Apps Script-editor
@@ -785,6 +810,101 @@
     }
   }
 
+  async function vulTokensAan() {
+    try {
+      const data = await callApi('vulOntbrekendeTokensAan');
+      showMsg('tokensAanvullenMsg', data.aangevuld > 0
+        ? 'Tokens aangevuld voor ' + data.aangevuld + ' leden.'
+        : 'Alle leden hadden al een Token - niets aangepast.', true);
+      loadMembers();
+    } catch (err) {
+      showMsg('tokensAanvullenMsg', err.message, false);
+    }
+  }
+
+  // ---- Abonnementen bijwerken (update-import) ----
+  let updateTeVerwerken = [];
+
+  function leesUpdateBestand(event) {
+    const bestand = event.target.files[0];
+    if (!bestand) return;
+
+    document.getElementById('updateMsg').className = 'msg';
+    Papa.parse(bestand, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function (resultaat) {
+        verwerkUpdateData(resultaat.data);
+      },
+      error: function (err) {
+        showMsg('updateMsg', 'Kon het bestand niet lezen: ' + err.message, false);
+      }
+    });
+  }
+
+  function verwerkUpdateData(ruweRijen) {
+    const datumRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const perLidnummer = {}; // dedupe: laatste voorkomen wint
+    const fouten = [];
+
+    ruweRijen.forEach(function (ruw, i) {
+      const rijnr = i + 2; // rij 1 is de koptekst
+      const genormaliseerd = {};
+      Object.keys(ruw).forEach(k => { genormaliseerd[k.trim().toLowerCase()] = String(ruw[k] || '').trim(); });
+
+      const lidnummer = genormaliseerd['lidnummer'] || '';
+      const vervaldatum = genormaliseerd['vervaldatum'] || genormaliseerd['geldig t/m'] || genormaliseerd['geldig tot'] || '';
+
+      if (!lidnummer || !vervaldatum) {
+        fouten.push('Rij ' + rijnr + ': lidnummer en/of datum ontbreekt - overgeslagen');
+        return;
+      }
+      if (!datumRegex.test(vervaldatum) || isNaN(new Date(vervaldatum).getTime())) {
+        fouten.push('Rij ' + rijnr + ': ongeldige datum (' + vervaldatum + '), verwacht jjjj-mm-dd - overgeslagen');
+        return;
+      }
+      if (perLidnummer[lidnummer]) {
+        fouten.push('Rij ' + rijnr + ': lidnummer ' + lidnummer + ' komt dubbel voor - laatste waarde in het bestand wordt gebruikt');
+      }
+      perLidnummer[lidnummer] = vervaldatum;
+    });
+
+    // Vast tegen het huidige ledenoverzicht aanhouden, voor een duidelijke preview vooraf
+    let onbekend = 0, geenAbonnement = 0;
+    const teVerwerken = [];
+    Object.keys(perLidnummer).forEach(function (lidnummer) {
+      const lid = ledenCache.find(l => String(l.lidnummer) === lidnummer);
+      if (!lid) { onbekend++; return; }
+      if (lid.type !== 'Abonnement') { geenAbonnement++; return; }
+      teVerwerken.push({ lidnummer: lidnummer, vervaldatum: perLidnummer[lidnummer] });
+    });
+
+    updateTeVerwerken = teVerwerken;
+
+    document.getElementById('updatePreview').classList.remove('hidden');
+    document.getElementById('updateSamenvatting').textContent =
+      teVerwerken.length + ' abonnementen worden bijgewerkt' +
+      (onbekend ? ', ' + onbekend + ' onbekend lidnummer' : '') +
+      (geenAbonnement ? ', ' + geenAbonnement + ' zonder abonnement' : '') + '.';
+    document.getElementById('updateFouten').innerHTML = fouten.map(f => '<div>' + f + '</div>').join('');
+    document.getElementById('updateBevestigKnop').disabled = teVerwerken.length === 0;
+    document.getElementById('updateBevestigKnop').classList.toggle('knop-grijs', teVerwerken.length === 0);
+  }
+
+  async function bevestigUpdateImport() {
+    if (updateTeVerwerken.length === 0) return;
+    try {
+      const data = await callApi('importeerAbonnementUpdates', { rijen: updateTeVerwerken });
+      showMsg('updateMsg', data.bijgewerkt + ' abonnementen bijgewerkt' + (data.overgeslagen ? ', ' + data.overgeslagen + ' overgeslagen' : '') + '.', true);
+      updateTeVerwerken = [];
+      document.getElementById('updatePreview').classList.add('hidden');
+      document.getElementById('updateBestand').value = '';
+      loadMembers();
+    } catch (err) {
+      showMsg('updateMsg', err.message, false);
+    }
+  }
+
   async function addMember() {
     const lidnummer = document.getElementById('newLidnummer').value.trim();
     const naam = document.getElementById('newNaam').value.trim();
@@ -1075,6 +1195,7 @@
 
     try {
       const data = await callApi('getMemberInfo', { lidnummer });
+      if (!data.token) throw new Error('Dit lid heeft geen Token - gebruik eerst "Vul ontbrekende tokens aan" bij Instellingen.');
       const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(data.token);
       const ondertitel = data.type === 'Abonnement'
         ? 'Abonnement t/m ' + (data.vervalDatum || '-')
