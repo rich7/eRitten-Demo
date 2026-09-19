@@ -52,6 +52,15 @@
             border-color: #3b82f6;
             color: #3b82f6;
         }
+
+.membercard img {
+    width: 85.6mm;                /* Echte breedte van een creditcard */
+    height: 53.98mm;              /* Echte hoogte van een creditcard */
+    object-fit: cover;            /* Voorkomt vervorming van de foto */
+    border-radius: 4mm;           /* Ronde hoekjes passend bij een pasje */
+}
+
+        
     </style>
 </head>
 <body>
@@ -73,15 +82,15 @@
         
         <!-- VUL HIER JE LINK IN bij href="" -->
         <a href="https://docs.google.com/spreadsheets/d/1LHm-mzf8EvICHPYw2xN5iL0ImvYcfj4quDicpionZQU/edit?gid=0#gid=0" class="card">Backend</a>
-        <div class="card">
+        <div class="membercard">
             <h3>Scan Ere lid Altijd toegang</h3>
             <img src="QRcode erelid .JPG" alt="Erelid altijd toegang">
         </div>
-        <div class="card">
+        <div class="membercard">
             <h3>Scan Ritten kaart geldig (schrijft 1 rit af</h3>
             <img src="QRcode 100 ritten.JPG" alt="Erelid altijd toegang">
         </div>
-        <div class="card">
+        <div class="membercard">
             <h3>Scan Verlopen kaart</h3>
             <img src="QRcode verlopen.JPG" alt="Erelid altijd toegang">
         </div>
@@ -89,12 +98,7 @@
         
         <img src="QRcode erelid .JPG" alt="Erelid altijd toegang" class="card">    <!-- VUL HIER JE LINK IN bij href="" -->
     </main>
-    <h1>Scan Ere Lid (altijd toegang)</h1>
-    <img src="QRcode erelid .JPG" alt="Erelid altijd toegang">
- <h1>Flow chart</h1>
-    <a href="HIER_JE_BESTEMMINGSLINK" class="banner-card">
-    <img src="flowchart.JPG" alt="Flow chart">
-</a>
+
     <script>
         // Update datum en tijd
         function updateDateTime() {
