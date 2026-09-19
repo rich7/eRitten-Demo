@@ -10,6 +10,9 @@ Admin pagina
 <img width="703" height="668" alt="demo rit2" src="https://github.com/user-attachments/assets/3dbdcf44-6c3a-4395-b771-5df181e72822" />
 Toegang verlenen voor scanners (Gewone smartphone of QR-code scanners)
 
+##DASHBOARD
+https://rich7.github.io/eRitten-Demo/demoindex.html
+
 
 ## Vraag voor demo account
 Uitproberen?  Op maat gemaakte eRittenkaart? of een kant en klare oplossing? Ik ben bereikbaar op  rich.de.ree@gmail.com
