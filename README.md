@@ -4,14 +4,16 @@
 ##   de Makkelijkste manier, ook zonder apps en installatie mogelijk
 Deze 'app' neemt de zorgen voor rittenkaarten en strippenkaarten uit handen. Het is voor verenigingen / sportclubs / sportschool / joga studio  etc. die de toegang tot hun faciliteiten per keer (rit) of abonnement aanbieden. De 'apps' zijn gewone webpagina's die op de telefoon op computer werken. 
 
+
+##DASHBOARD
+https://rich7.github.io/eRitten-Demo/demoindex.html
+
+
 ##SCREENSHOTS
 <img width="709" height="644" alt="demo_rit1" src="https://github.com/user-attachments/assets/c8bee162-ed22-40eb-ad15-436f59e2745c" />
 Admin pagina 
 <img width="703" height="668" alt="demo rit2" src="https://github.com/user-attachments/assets/3dbdcf44-6c3a-4395-b771-5df181e72822" />
 Toegang verlenen voor scanners (Gewone smartphone of QR-code scanners)
-
-##DASHBOARD
-https://rich7.github.io/eRitten-Demo/demoindex.html
 
 
 ## Vraag voor demo account
