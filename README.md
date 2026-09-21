@@ -1,8 +1,12 @@
 <img width="807" height="450" alt="qr scan 1784971454" src="https://github.com/user-attachments/assets/0994c996-6e69-4113-bec7-fb8fe4f0e778" />
 
-## eRittenkaart  Toegangscontrole op abonnementen en rittenkaarten
-##   de Makkelijkste manier, ook zonder apps en installatie mogelijk
+## DEMO DASHBOARD
+https://rich7.github.io/eRitten-Demo/demoindex.html
+
+## eRittenkaart  Toegangscontrole op abonnementen en rittenkaarten   de Makkelijkste manier, ook zonder apps en installatie mogelijk
 Deze 'app' neemt de zorgen voor rittenkaarten en strippenkaarten uit handen. Het is voor verenigingen / sportclubs / sportschool / joga studio  etc. die de toegang tot hun faciliteiten per keer (rit) of abonnement aanbieden. De 'apps' zijn gewone webpagina's die op de telefoon op computer werken. 
+
+
 
 ##SCREENSHOTS
 <img width="709" height="644" alt="demo_rit1" src="https://github.com/user-attachments/assets/c8bee162-ed22-40eb-ad15-436f59e2745c" />

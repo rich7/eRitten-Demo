@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; }
+        body {
+            min-height: 100vh;
+            background: #f4f6f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        h1 { color: #1e293b; font-size: 2rem; }
+        #datetime { color: #64748b; margin-top: 0.5rem; font-size: 0.9rem; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 800px;
+        }
+
+.card {
+    background: linear-gradient(to bottom, #d6ffff, #b3eeee);
+    border-radius: 12px;
+    padding: 2rem;
+    text-decoration: none;
+    color: #1e293b;
+    font-size: 1.25rem;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    
+    /* BELANGRIJK VOOR DE FOOTER: */
+    position: relative;        /* Zorgt dat de footer binnen deze kaart blijft */
+    display: flex;
+    flex-direction: column;    /* Zet inhoud onder elkaar in plaats van op een hoop */
+    justify-content: center;   /* Centreert je "QR Scanner" tekst verticaal */
+    align-items: center;
+    
+    min-height: 120px;
+    border: 1px solid #e2e8f0;
+    box-sizing: border-box;    /* Handig zodat padding de breedte/hoogte niet sloopt */
+}
+.card-footer-text {
+    position: absolute;
+    bottom: 8px;               /* Net iets van de onderkant */
+    left: 15px;                
+    font-size: 0.75rem;        
+    color: #665;
+    font-weight: normal;       /* Zorgt dat de kleine tekst niet dikgedrukt is */
+}
+    .membercard img {
+    width: 85.6mm;                /* Echte breedte van een creditcard */
+    height: 53.98mm;              /* Echte hoogte van een creditcard */
+    object-fit: cover;            /* Voorkomt vervorming van de foto */
+    border-radius: 4mm;           /* Ronde hoekjes passend bij een pasje */
+}
+
+        
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Demo QR Rit en Abonnementen toegangsbeheer Dashboard</h1>
+        <p id="datetime"></p>
+    </header>
+
+    <main class="grid">
+        <div class="card">  
+            <a href="https://rich7.github.io/eRitten-Demo/admin.html">QR toegang admin</a>
+        </div>    
+        <div class="card">
+            <a href="https://rich7.github.io/eRitten-Demo/scanner.html">
+            <span class="card-titel">QR Scanner</span>
+            <span class="card-footer-text">lid: 9991  wachtwoord: test1234</span></a>
+        </div>
+        <div class="card">
+            <a href="https://rich7.github.io/eRitten-Demo/lid.html"</a>    
+            <span class="card-titel">Lid app</span>
+            <span class="card-footer-text">lid: 5556  email: vanoranje@niet.nl </span></a>    
+        </div>
+        <div class="card">
+        <a href="https://docs.google.com/spreadsheets/d/1LHm-mzf8EvICHPYw2xN5iL0ImvYcfj4quDicpionZQU/edit?gid=0#gid=0">Backend</a>
+        </div>
+        <div class="membercard">
+            <h3>Scan Ere lid Altijd toegang</h3>
+            <img src="QRcode erelid .JPG" alt="Erelid altijd toegang">
+        </div>
+        <div class="membercard">
+            <h3>Scan Rittenkaart (schrijft 1 rit af)</h3>
+            <img src="QRcode 100 ritten.JPG" alt="1000 ritten Kaart">
+        </div>
+        <div class="membercard">
+            <h3>Scan Verlopen kaart</h3>
+            <img src="QRVerlopen.JPG" alt="Verlopen">
+        </div>
+
+    </main>
+
+     <h1>Flow chart</h1>
+     <img src="flowchart.JPG" alt="Flow chart">
+
+    
+    <script>
+        // Update datum en tijd
+        function updateDateTime() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            document.getElementById('datetime').textContent = now.toLocaleDateString('nl-NL', options);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 60000);
+    </script>
+
+</body>
+</html>
