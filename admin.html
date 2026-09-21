@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!---  V8 --->
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
@@ -197,7 +198,10 @@
   <div id="loginHoofdbeheerder" class="hidden">
     <p class="subtitle">Inloggen als hoofdbeheerder</p>
     <form onsubmit="loginHoofdbeheerder(event); return false;">
-      <input type="text" name="username" value="rittenkaart-hoofdbeheerder" autocomplete="username" style="display:none">
+      <div id="hoofdbeheerderEmailVeld">
+        <label>E-mailadres (Google-account)</label>
+        <input type="email" id="hoofdbeheerderEmail" name="username" autocomplete="username" placeholder="naam@gmail.com">
+      </div>
       <label>Hoofdbeheerder-wachtwoord</label>
       <input type="password" id="hoofdbeheerderWachtwoord" name="password" autocomplete="current-password" placeholder="Wachtwoord">
       <button type="submit">Inloggen</button>
@@ -249,17 +253,24 @@
       <input id="newAchternaam" placeholder="">
       <label>E-mailadres</label>
       <input id="newEmail" type="email" placeholder="naam@voorbeeld.nl">
+      <label>Wachtwoord voor de ledenapp (lid.html)</label>
+      <input id="newLidWachtwoord" type="text" placeholder="minstens 4 tekens">
 
       <label>Type</label>
       <div class="type-keuze">
         <label>
           <input type="radio" name="newType" value="Ritten" checked onchange="wisselNieuwType()">
-          Rittenkaart (10 ritten)
+          Rittenkaart
         </label>
         <label>
           <input type="radio" name="newType" value="Abonnement" onchange="wisselNieuwType()">
           Abonnement
         </label>
+      </div>
+
+      <div id="newRittenVeld" class="subveld" style="display:block;">
+        <label>Aantal ritten</label>
+        <input id="newRittenAantal" type="number" min="1" value="10">
       </div>
 
       <div id="newAbonnementVeld" class="subveld">
@@ -453,16 +464,25 @@
 
     <div id="detailVoltooienVeld" class="subveld">
       <p class="subtitle" style="margin:6px 0 10px;">Dit lid heeft nog geen Ritten/Abonnement - kies er een om de registratie te voltooien.</p>
+
+      <label>Wachtwoord voor de ledenapp (lid.html)</label>
+      <input id="detailVoltooienLidWachtwoord" type="text" placeholder="leeg laten = ongewijzigd">
+
       <label>Type</label>
       <div class="type-keuze">
         <label>
           <input type="radio" name="detailVoltooienType" value="Ritten" checked onchange="wisselDetailVoltooienType()">
-          Rittenkaart (10 ritten)
+          Rittenkaart
         </label>
         <label>
           <input type="radio" name="detailVoltooienType" value="Abonnement" onchange="wisselDetailVoltooienType()">
           Abonnement
         </label>
+      </div>
+
+      <div id="detailVoltooienRittenVeld" class="subveld" style="display:block;">
+        <label>Aantal ritten</label>
+        <input id="detailVoltooienAantal" type="number" min="1" value="10">
       </div>
 
       <div id="detailVoltooienAbonnementVeld" class="subveld">
@@ -524,6 +544,12 @@
       <button class="secondary" onclick="detailStuurEmailOpnieuw()">E-mail opnieuw sturen</button>
       <button class="danger" onclick="detailVerwijderLid()">Lid verwijderen</button>
     </div>
+
+    <div id="detailWachtwoordVeld" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <label>Wachtwoord ledenapp instellen/wijzigen</label>
+      <input id="detailLidWachtwoord" type="text" placeholder="minstens 4 tekens">
+      <button class="secondary" onclick="detailZetLidWachtwoord()">Opslaan</button>
+    </div>
   </div>
 </div>
 
@@ -538,6 +564,7 @@
   let gevondenLid = null;
   let ledenCache = [];
   let verenigingNaamGlobaal = '';
+  let hoofdbeheerderEmailVereist = true; // wordt bij laden overschreven vanuit de server (dipswitch)
 
   async function callApi(action, extra) {
     const body = Object.assign({ action: action }, credentials, extra || {});
@@ -559,6 +586,16 @@
     if (!json.success) throw new Error(json.error || 'Onbekende fout');
     return json.data;
   }
+
+  (async function haalInlogInstellingenOp() {
+    try {
+      const data = await callApi('getInlogInstellingen');
+      hoofdbeheerderEmailVereist = !!data.emailVereist;
+      document.getElementById('hoofdbeheerderEmailVeld').style.display = hoofdbeheerderEmailVereist ? 'block' : 'none';
+    } catch (e) {
+      // Kan de instelling niet ophalen (bv. APPS_SCRIPT_URL nog niet ingevuld) - veld gewoon laten staan.
+    }
+  })();
 
   function showMsg(id, text, ok) {
     const el = document.getElementById(id);
@@ -589,10 +626,12 @@
 
   async function loginHoofdbeheerder(e) {
     if (e) e.preventDefault();
+    const email = document.getElementById('hoofdbeheerderEmail').value.trim();
     const pw = document.getElementById('hoofdbeheerderWachtwoord').value;
     if (!pw) return;
+    if (hoofdbeheerderEmailVereist && !email) return;
     try {
-      credentials = { adminPassword: pw };
+      credentials = { adminPassword: pw, adminEmail: email };
       const data = await callApi('checkAdminPassword');
       naLoginGelukt(data);
     } catch (err) {
@@ -693,6 +732,7 @@
   function wisselNieuwType() {
     const type = document.querySelector('input[name="newType"]:checked').value;
     document.getElementById('newAbonnementVeld').style.display = type === 'Abonnement' ? 'block' : 'none';
+    document.getElementById('newRittenVeld').style.display = type === 'Ritten' ? 'block' : 'none';
     if (type === 'Abonnement') vulIngangsdatumOptiesVoor('new');
   }
 
@@ -910,18 +950,22 @@
     const naam = document.getElementById('newNaam').value.trim();
     const achternaam = document.getElementById('newAchternaam').value.trim();
     const email = document.getElementById('newEmail').value.trim();
+    const lidWachtwoord = document.getElementById('newLidWachtwoord').value.trim();
     const type = document.querySelector('input[name="newType"]:checked').value;
     const duur = document.getElementById('newDuur').value;
+    const aantal = document.getElementById('newRittenAantal').value;
     const stuurMail = document.getElementById('newStuurMail').checked;
     const ingangsdatum = type === 'Abonnement' ? bepaalGekozenIngangsdatum('new') : undefined;
     try {
-      const data = await callApi('addMember', { lidnummer, naam, achternaam, email, type, duur, stuurMail, ingangsdatum });
+      const data = await callApi('addMember', { lidnummer, naam, achternaam, email, lidWachtwoord, type, duur, aantal, stuurMail, ingangsdatum });
       const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ', QR-code is gemaild.' : ', mail NIET verstuurd (nog binnen 5 min. sinds vorige mail aan dit lid).');
       showMsg('addMsg', 'Lid toegevoegd' + mailTekst, true);
       document.getElementById('newLidnummer').value = '';
       document.getElementById('newNaam').value = '';
       document.getElementById('newAchternaam').value = '';
       document.getElementById('newEmail').value = '';
+      document.getElementById('newLidWachtwoord').value = '';
+      document.getElementById('newRittenAantal').value = 10;
       loadMembers();
     } catch (err) {
       showMsg('addMsg', err.message, false);
@@ -1059,9 +1103,13 @@
       document.getElementById('detailVoltooienVeld').style.display = isOnvolledig ? 'block' : 'none';
       document.getElementById('detailRittenVeld').style.display = !isOnvolledig && !isAbonnement ? 'block' : 'none';
       document.getElementById('detailAbonnementVeld').style.display = !isOnvolledig && isAbonnement ? 'block' : 'none';
+      document.getElementById('detailWachtwoordVeld').style.display = isOnvolledig ? 'none' : 'block';
+      document.getElementById('detailLidWachtwoord').value = '';
+      document.getElementById('detailVoltooienLidWachtwoord').value = '';
 
       if (isOnvolledig) {
         document.querySelector('input[name="detailVoltooienType"][value="Ritten"]').checked = true;
+        document.getElementById('detailVoltooienAantal').value = 10;
         wisselDetailVoltooienType();
       }
 
@@ -1096,6 +1144,7 @@
   function wisselDetailVoltooienType() {
     const type = document.querySelector('input[name="detailVoltooienType"]:checked').value;
     document.getElementById('detailVoltooienAbonnementVeld').style.display = type === 'Abonnement' ? 'block' : 'none';
+    document.getElementById('detailVoltooienRittenVeld').style.display = type === 'Ritten' ? 'block' : 'none';
     if (type === 'Abonnement') vulIngangsdatumOptiesVoor('detailVoltooien');
   }
 
@@ -1103,10 +1152,12 @@
     if (!gevondenLid) return;
     const type = document.querySelector('input[name="detailVoltooienType"]:checked').value;
     const duur = document.getElementById('detailVoltooienDuur').value;
+    const aantal = document.getElementById('detailVoltooienAantal').value;
+    const lidWachtwoord = document.getElementById('detailVoltooienLidWachtwoord').value.trim();
     const stuurMail = document.getElementById('detailVoltooienMail').checked;
     const ingangsdatum = type === 'Abonnement' ? bepaalGekozenIngangsdatum('detailVoltooien') : undefined;
     try {
-      const data = await callApi('voltooiLid', { lidnummer: gevondenLid.lidnummer, type, duur, stuurMail, ingangsdatum });
+      const data = await callApi('voltooiLid', { lidnummer: gevondenLid.lidnummer, type, duur, aantal, lidWachtwoord, stuurMail, ingangsdatum });
       const mailTekst = !stuurMail ? '' : (data.mailVerstuurd ? ' Mail verstuurd.' : ' Mail NIET verstuurd (nog binnen 5 min. sinds vorige mail).');
       showMsg('detailMsg', 'Lid voltooid als ' + type + '.' + mailTekst, true);
       zetKnopOpGebruikt('detailVoltooienKnop', 'Voltooid');
@@ -1175,6 +1226,18 @@
       await callApi('deleteMember', { lidnummer: gevondenLid.lidnummer });
       sluitLidDetail();
       loadMembers();
+    } catch (err) {
+      showMsg('detailMsg', err.message, false);
+    }
+  }
+
+  async function detailZetLidWachtwoord() {
+    if (!gevondenLid) return;
+    const lidWachtwoord = document.getElementById('detailLidWachtwoord').value.trim();
+    try {
+      await callApi('setLidWachtwoord', { lidnummer: gevondenLid.lidnummer, lidWachtwoord });
+      showMsg('detailMsg', 'Wachtwoord voor de ledenapp opgeslagen.', true);
+      document.getElementById('detailLidWachtwoord').value = '';
     } catch (err) {
       showMsg('detailMsg', err.message, false);
     }
