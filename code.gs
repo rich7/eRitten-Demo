@@ -5,7 +5,14 @@
  *
  * "Leden" (rij 1 = koppen):
  *   A: Lidnummer | B: Naam | C: Email | D: Token | E: Saldo | F: LaatsteScan
- *   G: AangemaaktOp | H: Type | I: Vervaldatum | J: Achternaam
+ *   G: AangemaaktOp | H: Type | I: Vervaldatum | J: Achternaam | K: LidWachtwoordHash
+ *
+ * Kolom K is het wachtwoord waarmee een lid zelf inlogt in lid.html (e-mail +
+ * wachtwoord). Wordt, net als bij Beheerders/Scanners, als SHA-256-hash
+ * opgeslagen. De hoofdbeheerder/beheerder zet het bij het aanmaken/voltooien
+ * van een lid; een lid kan het zelf (opnieuw) instellen via "Wachtwoord
+ * vergeten" in lid.html (stuurt een tijdelijke resetlink per mail, 30 minuten
+ * geldig, via CacheService - geen aparte kolom voor nodig).
  *
  * Kolom H (Type) bevat 'Ritten', 'Abonnement', of - tijdelijk - LEEG.
  * Een leeg Type betekent "onvolledig geregistreerd" (bv. net via import
@@ -27,8 +34,10 @@
  * "Beheerders" (automatisch aangemaakt zodra je de eerste beheerder
  * toevoegt via het adminpaneel > tab "Beheerders" - ALLEEN te beheren
  * door de hoofdbeheerder, zie hieronder):
- *   A: Gebruikersnaam | B: Naam | C: WachtwoordHash
- * Een beheerder hoeft geen lid te zijn - los van "Leden".
+ *   A: Lidnummer | B: WachtwoordHash
+ * Een beheerder moet, net als een scanner-gebruiker, altijd al lid zijn
+ * (Lidnummer moet voorkomen in "Leden"); de naam wordt van daaruit
+ * opgezocht, niet apart opgeslagen.
  *
  * "Scanners" (automatisch aangemaakt zodra je de eerste scanner-gebruiker
  * toevoegt, door elke beheerder te beheren):
@@ -45,7 +54,7 @@
  *   (Scripteigenschappen). Dit is de enige die de Beheerders-lijst mag
  *   beheren (toevoegen/verwijderen), en is altijd bruikbaar als vangnet
  *   - kan dus nooit volledig buitengesloten raken.
- * - Beheerder: logt in met gebruikersnaam + eigen wachtwoord (tabblad
+ * - Beheerder: logt in met lidnummer + eigen wachtwoord (tabblad
  *   "Beheerders"). Heeft verder dezelfde rechten als de hoofdbeheerder
  *   (ledenbeheer, scanner-gebruikers, instellingen), behalve het beheren
  *   van de Beheerders-lijst zelf.
@@ -78,6 +87,11 @@
  *    (BERICHT_DUUR_SECONDEN, SCAN_COOLDOWN_MINUTEN en
  *    RITTEN_HOUDBAARHEID_MAANDEN hoef je niet zelf te zetten - die kun
  *    je vanuit het adminpaneel > Instellingen wijzigen.)
+ *
+ *    "Dipswitch" - alleen zetten als je 'm wilt UITzetten (bv. voor een
+ *    demo-omgeving): HOOFDBEHEERDER_EMAIL_VEREIST = false
+ *    Standaard (niet gezet, of elke andere waarde) staat de e-mailcheck
+ *    bij hoofdbeheerder-login gewoon AAN.
  * 4. Implementeren > Nieuwe implementatie > Type: Webapp
  *      - Uitvoeren als: Ik (jouw account)
  *      - Toegang: Iedereen
@@ -96,6 +110,7 @@ const BEHEERDERS_SHEET_NAME = 'Beheerders';
 const SCANNERS_SHEET_NAME = 'Scanners';
 const LOG_SHEET_NAME = 'Log';
 const ADMIN_PASSWORD_PROP = 'ADMIN_PASSWORD';
+const HOOFDBEHEERDER_EMAIL_VEREIST_PROP = 'HOOFDBEHEERDER_EMAIL_VEREIST';
 const VERENIGING_NAAM_PROP = 'VERENIGING_NAAM';
 const BERICHT_DUUR_PROP = 'BERICHT_DUUR_SECONDEN';
 const SCAN_COOLDOWN_PROP = 'SCAN_COOLDOWN_MINUTEN';
@@ -135,6 +150,9 @@ function doPost(e) {
 
     switch (action) {
       // ---- Publiek (geen inlog nodig) ----
+      case 'getInlogInstellingen':
+        result = { emailVereist: getHoofdbeheerderEmailVereist() };
+        break;
       case 'scan':
         result = scanLid(params.token, params.scannerLidnummer);
         break;
@@ -147,13 +165,19 @@ function doPost(e) {
       case 'checkScannerLogin':
         result = checkScannerLogin(params.lidnummer, params.wachtwoord);
         break;
-      case 'memberStatus':
-        result = memberStatus(params.lidnummer, params.email);
+      case 'checkLidLogin':
+        result = checkLidLogin(params.email, params.wachtwoord);
+        break;
+      case 'vraagWachtwoordResetAan':
+        result = vraagWachtwoordResetAan(params.email);
+        break;
+      case 'wisselWachtwoordViaReset':
+        result = wisselWachtwoordViaReset(params.token, params.nieuwWachtwoord);
         break;
 
       // ---- Inloggen (hoofdbeheerder / beheerder) ----
       case 'checkAdminPassword':
-        checkAdmin(params.adminPassword);
+        checkAdmin(params.adminPassword, params.adminEmail);
         result = Object.assign({ ok: true, isHoofdbeheerder: true }, huidigeInstellingen());
         break;
       case 'checkBeheerderLogin':
@@ -175,11 +199,15 @@ function doPost(e) {
         break;
       case 'addMember':
         uitgevoerdDoor = checkToegang(params);
-        result = addMember(params.lidnummer, params.naam, params.email, params.type, params.duur, !!params.stuurMail, params.ingangsdatum, params.achternaam, uitgevoerdDoor);
+        result = addMember(params.lidnummer, params.naam, params.email, params.type, params.duur, !!params.stuurMail, params.ingangsdatum, params.achternaam, params.aantal, params.lidWachtwoord, uitgevoerdDoor);
         break;
       case 'voltooiLid':
         uitgevoerdDoor = checkToegang(params);
-        result = voltooiLid(params.lidnummer, params.type, params.duur, !!params.stuurMail, params.ingangsdatum, uitgevoerdDoor);
+        result = voltooiLid(params.lidnummer, params.type, params.duur, !!params.stuurMail, params.ingangsdatum, params.aantal, params.lidWachtwoord, uitgevoerdDoor);
+        break;
+      case 'setLidWachtwoord':
+        uitgevoerdDoor = checkToegang(params);
+        result = setLidWachtwoord(params.lidnummer, params.lidWachtwoord, uitgevoerdDoor);
         break;
       case 'importeerLeden':
         uitgevoerdDoor = checkToegang(params);
@@ -232,15 +260,15 @@ function doPost(e) {
 
       // ---- Alleen hoofdbeheerder ----
       case 'getBeheerders':
-        checkAdmin(params.adminPassword);
+        checkAdmin(params.adminPassword, params.adminEmail);
         result = getBeheerders();
         break;
       case 'addBeheerder':
-        checkAdmin(params.adminPassword);
+        checkAdmin(params.adminPassword, params.adminEmail);
         result = addBeheerder(params.lidnummer, params.wachtwoord);
         break;
       case 'removeBeheerder':
-        checkAdmin(params.adminPassword);
+        checkAdmin(params.adminPassword, params.adminEmail);
         result = removeBeheerder(params.lidnummer);
         break;
 
@@ -253,11 +281,36 @@ function doPost(e) {
   }
 }
 
+/** Dipswitch: e-mailcheck bij hoofdbeheerder-login aan/uit (Scripteigenschap). Standaard: aan. */
+function getHoofdbeheerderEmailVereist() {
+  const v = PropertiesService.getScriptProperties().getProperty(HOOFDBEHEERDER_EMAIL_VEREIST_PROP);
+  if (v === null) return true;
+  const waarde = String(v).trim().toLowerCase();
+  return waarde !== 'false' && waarde !== '0' && waarde !== 'nee' && waarde !== 'uit';
+}
+
 /** Hoofdbeheerder-wachtwoord (uit Scripteigenschappen) controleren. */
-function checkAdmin(pw) {
+function checkAdmin(pw, email) {
   const real = PropertiesService.getScriptProperties().getProperty(ADMIN_PASSWORD_PROP);
   if (!real) throw new Error('ADMIN_PASSWORD is niet ingesteld in Scripteigenschappen');
   if (!pw || String(pw).trim() !== String(real).trim()) throw new Error('Ongeldig wachtwoord');
+
+  if (!getHoofdbeheerderEmailVereist()) return; // dipswitch uit: geen e-mailcheck
+
+  // Extra controle: e-mailadres moet overeenkomen met het Google-account waaronder
+  // dit script draait. Lukt het niet om dat account op te vragen (kan in sommige
+  // Workspace-instellingen gebeuren), dan wordt deze extra controle overgeslagen.
+  let eigenaarEmail = '';
+  try {
+    eigenaarEmail = Session.getEffectiveUser().getEmail() || '';
+  } catch (e) {
+    eigenaarEmail = '';
+  }
+  if (eigenaarEmail) {
+    if (!email || String(email).trim().toLowerCase() !== eigenaarEmail.toLowerCase()) {
+      throw new Error('Ongeldig e-mailadres');
+    }
+  }
 }
 
 /**
@@ -266,7 +319,7 @@ function checkAdmin(pw) {
  */
 function checkToegang(params) {
   if (params.adminPassword) {
-    checkAdmin(params.adminPassword);
+    checkAdmin(params.adminPassword, params.adminEmail);
     return 'Hoofdbeheerder';
   }
   if (params.beheerderLidnummer && params.beheerderWachtwoord) {
@@ -380,6 +433,17 @@ function zoekRijInKolom(sheet, kolomIndex, waarde) {
 
 function findRowByToken(token) {
   return zoekRijInKolom(getSheet(), 4, token);
+}
+
+/** E-mail zoeken is hoofdletterongevoelig (in tegenstelling tot de standaard TextFinder). */
+function findRowByEmail(email) {
+  const sheet = getSheet();
+  const laatsteRij = sheet.getLastRow();
+  if (laatsteRij < 2) return -1;
+  const bereik = sheet.getRange(2, 3, laatsteRij - 1, 1);
+  const finder = bereik.createTextFinder(String(email)).matchEntireCell(true).matchCase(false);
+  const cel = finder.findNext();
+  return cel ? cel.getRow() : -1;
 }
 
 function findRowByLidnummer(lidnummer) {
@@ -685,26 +749,32 @@ function logScan(lidnummer, naam, resultaat, saldo, doorWie) {
  * bepaald (vandaag / 1 januari / 1 juni / handmatig). Voor Ritten niet van
  * toepassing - houdbaarheid start altijd vanaf vandaag.
  * achternaam is optioneel (kolom J) - mag leeg blijven.
+ * aantal (alleen Ritten): startsaldo, standaard START_SALDO als niet opgegeven/ongeldig.
+ * lidWachtwoord: wachtwoord voor lid.html (e-mail + wachtwoord), verplicht -
+ * wordt als hash opgeslagen in kolom K.
  */
-function addMember(lidnummer, naam, email, type, duur, stuurMail, ingangsdatum, achternaam, uitgevoerdDoor) {
+function addMember(lidnummer, naam, email, type, duur, stuurMail, ingangsdatum, achternaam, aantal, lidWachtwoord, uitgevoerdDoor) {
   if (!lidnummer || !naam || !email) throw new Error('Lidnummer, naam en e-mail zijn verplicht');
+  if (!lidWachtwoord || String(lidWachtwoord).length < 4) throw new Error('Kies een wachtwoord voor de ledenapp van minstens 4 tekens');
   if (findRowByLidnummer(lidnummer) !== -1) throw new Error('Lidnummer bestaat al');
   if (type !== TYPE_RITTEN && type !== TYPE_ABONNEMENT) throw new Error('Ongeldig type, kies Ritten of Abonnement');
 
   const token = Utilities.getUuid();
   const achternaamWaarde = achternaam || '';
+  const lidWachtwoordHash = hashWachtwoord(lidWachtwoord);
 
   if (type === TYPE_RITTEN) {
+    const startSaldo = Number(aantal) > 0 ? Number(aantal) : START_SALDO;
     const vervalDatum = voegMaandenToe(new Date(), getRittenHoudbaarheidMaanden());
-    getSheet().appendRow([lidnummer, naam, email, token, START_SALDO, '', new Date(), TYPE_RITTEN, vervalDatum, achternaamWaarde]);
-    logScan(lidnummer, naam, 'Lid aangemaakt (Ritten, houdbaar t/m ' + formatDatum(vervalDatum) + ')', START_SALDO, uitgevoerdDoor);
+    getSheet().appendRow([lidnummer, naam, email, token, startSaldo, '', new Date(), TYPE_RITTEN, vervalDatum, achternaamWaarde, lidWachtwoordHash]);
+    logScan(lidnummer, naam, 'Lid aangemaakt (Ritten, ' + startSaldo + ' ritten, houdbaar t/m ' + formatDatum(vervalDatum) + ')', startSaldo, uitgevoerdDoor);
     let mailVerstuurd = false;
     if (stuurMail) mailVerstuurd = verstuurMailMetLock(lidnummer, function () { stuurWelkomstMailRitten(naam, email, token, lidnummer); });
-    return { lidnummer: lidnummer, naam: naam, email: email, type: type, saldo: START_SALDO, vervalDatum: formatDatum(vervalDatum), mailVerstuurd: mailVerstuurd };
+    return { lidnummer: lidnummer, naam: naam, email: email, type: type, saldo: startSaldo, vervalDatum: formatDatum(vervalDatum), mailVerstuurd: mailVerstuurd };
   } else {
     const basisDatum = ingangsdatum ? new Date(ingangsdatum) : new Date();
     const vervalDatum = berekenVervalDatum(basisDatum, duur);
-    getSheet().appendRow([lidnummer, naam, email, token, '', '', new Date(), TYPE_ABONNEMENT, vervalDatum, achternaamWaarde]);
+    getSheet().appendRow([lidnummer, naam, email, token, '', '', new Date(), TYPE_ABONNEMENT, vervalDatum, achternaamWaarde, lidWachtwoordHash]);
     logScan(lidnummer, naam, 'Lid aangemaakt (Abonnement, ingangsdatum ' + formatDatum(basisDatum) + ', geldig t/m ' + formatDatum(vervalDatum) + ')', '', uitgevoerdDoor);
     let mailVerstuurd = false;
     if (stuurMail) mailVerstuurd = verstuurMailMetLock(lidnummer, function () { stuurWelkomstMailAbonnement(naam, email, token, lidnummer, vervalDatum); });
@@ -715,8 +785,10 @@ function addMember(lidnummer, naam, email, type, duur, stuurMail, ingangsdatum, 
 /**
  * Voltooit een lid dat wel al bestaat (bv. via import) maar nog geen Type heeft.
  * Zelfde als addMember, maar dan voor een bestaande rij met een token dat er al is.
+ * lidWachtwoord is hier optioneel: alleen zetten/overschrijven als er iets is
+ * ingevuld, anders blijft een eventueel bestaand wachtwoord (kolom K) ongemoeid.
  */
-function voltooiLid(lidnummer, type, duur, stuurMail, ingangsdatum, uitgevoerdDoor) {
+function voltooiLid(lidnummer, type, duur, stuurMail, ingangsdatum, aantal, lidWachtwoord, uitgevoerdDoor) {
   const row = findRowByLidnummer(lidnummer);
   if (row === -1) throw new Error('Lid niet gevonden');
   const sheet = getSheet();
@@ -728,15 +800,21 @@ function voltooiLid(lidnummer, type, duur, stuurMail, ingangsdatum, uitgevoerdDo
   const email = sheet.getRange(row, 3).getValue();
   const token = sheet.getRange(row, 4).getValue();
 
+  if (lidWachtwoord) {
+    if (String(lidWachtwoord).length < 4) throw new Error('Kies een wachtwoord voor de ledenapp van minstens 4 tekens');
+    sheet.getRange(row, 11).setValue(hashWachtwoord(lidWachtwoord));
+  }
+
   if (type === TYPE_RITTEN) {
+    const startSaldo = Number(aantal) > 0 ? Number(aantal) : START_SALDO;
     const vervalDatum = voegMaandenToe(new Date(), getRittenHoudbaarheidMaanden());
-    sheet.getRange(row, 5).setValue(START_SALDO);
+    sheet.getRange(row, 5).setValue(startSaldo);
     sheet.getRange(row, 8).setValue(TYPE_RITTEN);
     sheet.getRange(row, 9).setValue(vervalDatum);
-    logScan(lidnummer, naam, 'Lid voltooid (Ritten, houdbaar t/m ' + formatDatum(vervalDatum) + ')', START_SALDO, uitgevoerdDoor);
+    logScan(lidnummer, naam, 'Lid voltooid (Ritten, ' + startSaldo + ' ritten, houdbaar t/m ' + formatDatum(vervalDatum) + ')', startSaldo, uitgevoerdDoor);
     let mailVerstuurd = false;
     if (stuurMail) mailVerstuurd = verstuurMailMetLock(lidnummer, function () { stuurWelkomstMailRitten(naam, email, token, lidnummer); });
-    return { lidnummer: lidnummer, naam: naam, type: type, saldo: START_SALDO, vervalDatum: formatDatum(vervalDatum), mailVerstuurd: mailVerstuurd };
+    return { lidnummer: lidnummer, naam: naam, type: type, saldo: startSaldo, vervalDatum: formatDatum(vervalDatum), mailVerstuurd: mailVerstuurd };
   } else {
     const basisDatum = ingangsdatum ? new Date(ingangsdatum) : new Date();
     const vervalDatum = berekenVervalDatum(basisDatum, duur);
@@ -982,15 +1060,16 @@ function getMembers() {
   return leden;
 }
 
-function memberStatus(lidnummer, email) {
-  if (!lidnummer || !email) throw new Error('Vul lidnummer en e-mailadres in');
-  const row = findRowByLidnummer(lidnummer);
-  if (row === -1) throw new Error('Onbekend lidnummer of e-mailadres');
+/** Login voor lid.html: e-mail + wachtwoord i.p.v. lidnummer + e-mail. */
+function checkLidLogin(email, wachtwoord) {
+  if (!email || !wachtwoord) throw new Error('Vul e-mailadres en wachtwoord in');
+  const row = findRowByEmail(email);
+  if (row === -1) throw new Error('Onbekend e-mailadres of wachtwoord');
 
   const sheet = getSheet();
-  const emailInSheet = String(sheet.getRange(row, 3).getValue()).trim().toLowerCase();
-  if (emailInSheet !== String(email).trim().toLowerCase()) {
-    throw new Error('Onbekend lidnummer of e-mailadres');
+  const opgeslagenHash = sheet.getRange(row, 11).getValue();
+  if (!opgeslagenHash || hashWachtwoord(wachtwoord) !== opgeslagenHash) {
+    throw new Error('Onbekend e-mailadres of wachtwoord');
   }
 
   const naam = sheet.getRange(row, 2).getValue();
@@ -1019,6 +1098,84 @@ function memberStatus(lidnummer, email) {
     vervalDatum: vervalRaw ? formatDatum(vervalRaw) : '',
     laatsteBezoek: laatsteBezoek
   };
+}
+
+/** Admin/beheerder zet of wijzigt het ledenapp-wachtwoord van een lid (bv. voor bestaande leden). */
+function setLidWachtwoord(lidnummer, wachtwoord, uitgevoerdDoor) {
+  if (!wachtwoord || String(wachtwoord).length < 4) throw new Error('Kies een wachtwoord van minstens 4 tekens');
+  const row = findRowByLidnummer(lidnummer);
+  if (row === -1) throw new Error('Lid niet gevonden');
+  const sheet = getSheet();
+  const naam = sheet.getRange(row, 2).getValue();
+  sheet.getRange(row, 11).setValue(hashWachtwoord(wachtwoord));
+  logScan(lidnummer, naam, 'Wachtwoord ledenapp ingesteld/gewijzigd door beheerder', '', uitgevoerdDoor);
+  return { lidnummer: lidnummer, ok: true };
+}
+
+// ---- Wachtwoord vergeten (lid.html) - resetlink via e-mail, 30 minuten geldig ----
+const WACHTWOORD_RESET_SECONDEN = 1800;
+
+/**
+ * Vraagt een resetlink aan. Geeft altijd hetzelfde generieke resultaat terug,
+ * ongeacht of het e-mailadres bestaat - zo lekt deze actie niet uit wie er wel/niet
+ * lid is. Verstuurt alleen echt een mail als het adres wél bekend is, en respecteert
+ * daarbij de bestaande mail-lock (max. 1 mail per 5 min per lid).
+ */
+function vraagWachtwoordResetAan(email) {
+  const lidAppUrl = getLidAppUrl();
+  if (!lidAppUrl) throw new Error('LID_APP_URL is niet ingesteld in Scripteigenschappen - nodig voor de resetlink');
+
+  const row = findRowByEmail(email);
+  if (row !== -1) {
+    const sheet = getSheet();
+    const lidnummer = sheet.getRange(row, 1).getValue();
+    const naam = sheet.getRange(row, 2).getValue();
+    const echtEmail = sheet.getRange(row, 3).getValue();
+    const token = Utilities.getUuid();
+    CacheService.getScriptCache().put('lid_reset_' + token, String(lidnummer), WACHTWOORD_RESET_SECONDEN);
+
+    verstuurMailMetLock(lidnummer, function () {
+      stuurWachtwoordResetMail(naam, echtEmail, lidAppUrl, token);
+    });
+  }
+
+  return { ok: true };
+}
+
+/** Rondt de reset af: nieuw wachtwoord instellen op basis van een geldig token (eenmalig bruikbaar). */
+function wisselWachtwoordViaReset(token, nieuwWachtwoord) {
+  if (!nieuwWachtwoord || String(nieuwWachtwoord).length < 4) throw new Error('Kies een wachtwoord van minstens 4 tekens');
+  const cache = CacheService.getScriptCache();
+  const sleutel = 'lid_reset_' + token;
+  const lidnummer = cache.get(sleutel);
+  if (!lidnummer) throw new Error('Deze link is verlopen of ongeldig - vraag een nieuwe aan');
+
+  const row = findRowByLidnummer(lidnummer);
+  if (row === -1) throw new Error('Lid niet gevonden');
+  const sheet = getSheet();
+  const naam = sheet.getRange(row, 2).getValue();
+  sheet.getRange(row, 11).setValue(hashWachtwoord(nieuwWachtwoord));
+  cache.remove(sleutel); // eenmalig bruikbaar
+  logScan(lidnummer, naam, 'Wachtwoord ledenapp gereset via e-maillink', '', '');
+  return { ok: true };
+}
+
+function stuurWachtwoordResetMail(naam, email, lidAppUrl, token) {
+  const verenigingNaam = getVerenigingNaam();
+  const scheidingsteken = lidAppUrl.indexOf('?') === -1 ? '?' : '&';
+  const resetUrl = lidAppUrl + scheidingsteken + 'reset=' + encodeURIComponent(token);
+
+  const html =
+    '<p>Beste ' + naam + ',</p>' +
+    '<p>Je hebt een nieuw wachtwoord aangevraagd voor je lidmaatschapskaart bij ' + verenigingNaam + '.</p>' +
+    '<p><a href="' + resetUrl + '">Klik hier om een nieuw wachtwoord in te stellen</a></p>' +
+    '<p>Deze link is 30 minuten geldig. Heb je dit niet zelf aangevraagd? Dan kun je deze mail negeren.</p>';
+
+  MailApp.sendEmail({
+    to: email,
+    subject: 'Nieuw wachtwoord voor je lidmaatschapskaart - ' + verenigingNaam,
+    htmlBody: html
+  });
 }
 
 /** Haalt een QR-afbeelding op voor een token - geeft een duidelijke foutmelding bij een lege/ontbrekende token. */

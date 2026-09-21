@@ -1,6 +1,6 @@
 <!DOCTYPE html>
+<!-- V1.8  -->
 <html lang="nl">
-<!-- V7 -->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +16,7 @@
     --border: #e2e4e8;
     --danger: #b3261e;
     --danger-bg: #fdecea;
+    --success-bg: #e8f5e9;
   }
   * { box-sizing: border-box; }
   body {
@@ -55,8 +56,28 @@
     cursor: pointer;
   }
   button:hover { background: var(--primary-dark); }
+  button.secondary {
+    background: transparent;
+    color: var(--primary);
+    border: 1px solid var(--primary);
+  }
+  button.link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    padding: 0;
+    margin: 14px 0 0;
+    font-size: 0.85rem;
+    text-decoration: underline;
+    cursor: pointer;
+    width: auto;
+    display: block;
+    text-align: center;
+  }
   .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.88rem; display: none; }
   .msg.err { background: var(--danger-bg); color: var(--danger); display: block; }
+  .msg.ok { background: var(--success-bg); color: var(--primary-dark); display: block; }
+  .hidden { display: none; }
 
   #resultaat { display: none; text-align: center; margin-top: 20px; }
   #resultaat .naam { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
@@ -81,13 +102,36 @@
   <p class="subtitle">Bekijk je tegoed / abonnement</p>
 
   <div class="card">
-    <div id="zoekForm">
-      <label>Lidnummer</label>
-      <input id="lidnummer" placeholder="bv. 1042">
+
+    <div id="loginForm">
+      <form onsubmit="login(event); return false;">
+        <label>E-mailadres</label>
+        <input id="loginEmail" type="email" autocomplete="username" placeholder="naam@voorbeeld.nl">
+        <label>Wachtwoord</label>
+        <input id="loginWachtwoord" type="password" autocomplete="current-password" placeholder="Wachtwoord">
+        <button type="submit">Inloggen</button>
+      </form>
+      <button class="link" onclick="toonVergeten()">Wachtwoord vergeten?</button>
+      <div id="loginMsg" class="msg"></div>
+    </div>
+
+    <div id="vergetenForm" class="hidden">
+      <p class="subtitle" style="margin:0 0 14px;">Vul je e-mailadres in, dan sturen we je (als dit adres bekend is) een link om een nieuw wachtwoord in te stellen.</p>
       <label>E-mailadres</label>
-      <input id="email" type="email" placeholder="naam@voorbeeld.nl">
-      <button onclick="bekijkStatus()">Bekijk mijn tegoed</button>
-      <div id="zoekMsg" class="msg"></div>
+      <input id="vergetenEmail" type="email" placeholder="naam@voorbeeld.nl">
+      <button onclick="vraagResetAan()">Verstuur resetlink</button>
+      <button class="link" onclick="toonLogin()">Terug naar inloggen</button>
+      <div id="vergetenMsg" class="msg"></div>
+    </div>
+
+    <div id="resetForm" class="hidden">
+      <p class="subtitle" style="margin:0 0 14px;">Kies een nieuw wachtwoord voor je account.</p>
+      <label>Nieuw wachtwoord</label>
+      <input id="resetWachtwoord1" type="password" placeholder="minstens 4 tekens">
+      <label>Herhaal nieuw wachtwoord</label>
+      <input id="resetWachtwoord2" type="password" placeholder="minstens 4 tekens">
+      <button onclick="stelNieuwWachtwoordIn()">Wachtwoord instellen</button>
+      <div id="resetMsg" class="msg"></div>
     </div>
 
     <div id="resultaat">
@@ -106,60 +150,154 @@
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx39GhCUTB7qq7Fg4xdVWqK5vozI2LsgmSokAKSzSmBfdT34QrVtY33YxsFBjlzPQjxHg/exec';
   // -----------------------------------------------------------------
 
-  async function bekijkStatus() {
-    const lidnummer = document.getElementById('lidnummer').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const msg = document.getElementById('zoekMsg');
+  async function roepApi(payload) {
+    const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const tekst = await res.text();
+    let json;
+    try {
+      json = JSON.parse(tekst);
+    } catch (e) {
+      throw new Error('Onverwacht antwoord van de server (status ' + res.status + '). Probeer het later opnieuw.');
+    }
+    if (!json.success) throw new Error(json.error);
+    return json.data;
+  }
+
+  function verbergAlleSchermen() {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('vergetenForm').classList.add('hidden');
+    document.getElementById('resetForm').classList.add('hidden');
+    document.getElementById('resultaat').style.display = 'none';
+  }
+
+  function toonLogin() {
+    verbergAlleSchermen();
+    document.getElementById('loginForm').classList.remove('hidden');
+  }
+
+  function toonVergeten() {
+    verbergAlleSchermen();
+    document.getElementById('vergetenForm').classList.remove('hidden');
+  }
+
+  async function login(e) {
+    if (e) e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const wachtwoord = document.getElementById('loginWachtwoord').value;
+    const msg = document.getElementById('loginMsg');
     msg.className = 'msg';
 
-    if (!lidnummer || !email) {
-      msg.textContent = 'Vul lidnummer en e-mailadres in.';
+    if (!email || !wachtwoord) {
+      msg.textContent = 'Vul e-mailadres en wachtwoord in.';
       msg.className = 'msg err';
       return;
     }
 
     try {
-      const res = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'memberStatus', lidnummer, email })
-      });
-      const tekst = await res.text();
-      let json;
-      try {
-        json = JSON.parse(tekst);
-      } catch (e) {
-        throw new Error('Onverwacht antwoord van de server (status ' + res.status + '). Probeer het later opnieuw.');
-      }
-      if (!json.success) throw new Error(json.error);
-
-      document.getElementById('resNaam').textContent = json.data.naam;
-      document.getElementById('resQr').src =
-        'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(json.data.token);
-
-      if (json.data.type === 'Abonnement') {
-        document.getElementById('resSaldo').textContent = json.data.geldig ? 'Geldig' : 'Verlopen';
-        document.getElementById('resSaldo').className = 'saldo-groot ' + (json.data.geldig ? 'status-geldig' : 'status-verlopen');
-        document.getElementById('resSaldoLabel').innerHTML = 'abonnement t/m <strong>' + json.data.vervalDatum + '</strong>';
-      } else {
-        document.getElementById('resSaldo').textContent = json.data.saldo;
-        document.getElementById('resSaldo').className = 'saldo-groot';
-        document.getElementById('resSaldoLabel').innerHTML =
-          'ritten over' + (json.data.vervalDatum ? ' (geldig t/m <strong>' + json.data.vervalDatum + '</strong>)' : '');
-      }
-
-      document.getElementById('resLaatsteBezoek').textContent = 'Laatste bezoek: ' + json.data.laatsteBezoek;
-      document.getElementById('zoekForm').style.display = 'none';
-      document.getElementById('resultaat').style.display = 'block';
+      const data = await roepApi({ action: 'checkLidLogin', email, wachtwoord });
+      toonResultaat(data);
     } catch (err) {
       msg.textContent = err.message;
       msg.className = 'msg err';
     }
   }
 
-  function terug() {
-    document.getElementById('resultaat').style.display = 'none';
-    document.getElementById('zoekForm').style.display = 'block';
+  function toonResultaat(data) {
+    document.getElementById('resNaam').textContent = data.naam;
+
+    if (data.onvolledig) {
+      document.getElementById('resQr').style.display = 'none';
+      document.getElementById('resSaldo').textContent = '';
+      document.getElementById('resSaldoLabel').textContent =
+        'Je registratie is nog niet compleet - neem contact op met de administratie.';
+      document.getElementById('resLaatsteBezoek').textContent = '';
+    } else {
+      document.getElementById('resQr').style.display = 'block';
+      document.getElementById('resQr').src =
+        'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(data.token);
+
+      if (data.type === 'Abonnement') {
+        document.getElementById('resSaldo').textContent = data.geldig ? 'Geldig' : 'Verlopen';
+        document.getElementById('resSaldo').className = 'saldo-groot ' + (data.geldig ? 'status-geldig' : 'status-verlopen');
+        document.getElementById('resSaldoLabel').innerHTML = 'abonnement t/m <strong>' + data.vervalDatum + '</strong>';
+      } else {
+        document.getElementById('resSaldo').textContent = data.saldo;
+        document.getElementById('resSaldo').className = 'saldo-groot';
+        document.getElementById('resSaldoLabel').innerHTML =
+          'ritten over' + (data.vervalDatum ? ' (geldig t/m <strong>' + data.vervalDatum + '</strong>)' : '');
+      }
+      document.getElementById('resLaatsteBezoek').textContent = 'Laatste bezoek: ' + data.laatsteBezoek;
+    }
+
+    verbergAlleSchermen();
+    document.getElementById('resultaat').style.display = 'block';
   }
+
+  function terug() {
+    document.getElementById('loginWachtwoord').value = '';
+    toonLogin();
+  }
+
+  async function vraagResetAan() {
+    const email = document.getElementById('vergetenEmail').value.trim();
+    const msg = document.getElementById('vergetenMsg');
+    if (!email) {
+      msg.textContent = 'Vul je e-mailadres in.';
+      msg.className = 'msg err';
+      return;
+    }
+    try {
+      await roepApi({ action: 'vraagWachtwoordResetAan', email });
+      msg.textContent = 'Als dit e-mailadres bekend is, is er een link verstuurd. Check ook je spamfolder.';
+      msg.className = 'msg ok';
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'msg err';
+    }
+  }
+
+  let resetToken = '';
+
+  async function stelNieuwWachtwoordIn() {
+    const w1 = document.getElementById('resetWachtwoord1').value;
+    const w2 = document.getElementById('resetWachtwoord2').value;
+    const msg = document.getElementById('resetMsg');
+
+    if (!w1 || w1.length < 4) {
+      msg.textContent = 'Kies een wachtwoord van minstens 4 tekens.';
+      msg.className = 'msg err';
+      return;
+    }
+    if (w1 !== w2) {
+      msg.textContent = 'De wachtwoorden komen niet overeen.';
+      msg.className = 'msg err';
+      return;
+    }
+
+    try {
+      await roepApi({ action: 'wisselWachtwoordViaReset', token: resetToken, nieuwWachtwoord: w1 });
+      msg.textContent = 'Wachtwoord ingesteld. Je kunt nu inloggen.';
+      msg.className = 'msg ok';
+      setTimeout(() => {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        toonLogin();
+      }, 1500);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = 'msg err';
+    }
+  }
+
+  // Bij het laden checken of dit een reset-link is (?reset=TOKEN)
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('reset');
+    if (token) {
+      resetToken = token;
+      verbergAlleSchermen();
+      document.getElementById('resetForm').classList.remove('hidden');
+    }
+  })();
 </script>
 </body>
 </html>
